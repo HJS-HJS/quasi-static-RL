@@ -1,0 +1,3 @@
+[submodule "src/third_party/quasi-static-push"]
+	path = src/third_party/quasi-static-push
+	url = https://github.com/HJS-HJS/quasi-static-push
