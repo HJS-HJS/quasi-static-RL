@@ -25,13 +25,13 @@ LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.005
 EPISODES        = 2000   # total episode
-TARGET_ENTROPY  = -6.0
+TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 50000
+MEMORY_CAPACITY = 100000
 BATCH_SIZE = 256
-EPOCH_SIZE = 2
+EPOCH_SIZE = 4
 # Other
 visulaize_step = 5
 MAX_STEP = 2048         # maximun available step per episode
@@ -64,6 +64,8 @@ class ActorNetwork(nn.Module):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
             nn.Linear(n_state, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
             nn.ReLU(),
             nn.Linear(128, 256),
             nn.ReLU(),
@@ -105,6 +107,8 @@ class QNetwork(nn.Module):
             nn.ReLU(),
         )
         self.layer = nn.Sequential(
+            nn.Linear(256, 256),
+            nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 1),
@@ -192,7 +196,7 @@ if TRAIN:
 
         # Running one episode
         total_reward = 0.0
-        for step in range(MAX_STEP):
+        for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
             action, logprob = actor_net(state_curr.unsqueeze(0))
 
@@ -232,7 +236,7 @@ if TRAIN:
         if (len(total_steps) != 0) and (step <= min(total_steps)):
             save_model(actor_net, SAVE_DIR, "actor", episode)
         if episode % visulaize_step == 0:
-            if (len(total_steps) != 0) and (np.mean(step_done_set) <= min(total_steps)):
+            if (len(total_steps) != 0) and (np.mean(step_done_set) < min(total_steps)):
                 save_model(actor_net, SAVE_DIR, "actor", episode)
             total_steps.append(np.mean(step_done_set))
             print("#{}: ".format(episode), np.mean(step_done_set).astype(int))
