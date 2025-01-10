@@ -8,13 +8,14 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
+import random
 
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from third_party.quasi_static_push.scripts.dish_simulation import DishSimulation
 from utils.sac_dataset import SACDataset
-from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_tensor
+from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
 # TRAIN           = False
@@ -22,10 +23,10 @@ TRAIN           = True
 LOAD            = False
 FILE_NAME = "0"
 # Learning frame
-FRAME = 10
+FRAME = 8
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
-DISCOUNT_FACTOR = 0.999   # gamma
+DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.005
 EPISODES        = 2000   # total episode
 TARGET_ENTROPY  = -4.0
@@ -242,7 +243,7 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr,
+                state_curr.to(torch.device('cpu')),
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.to(torch.device('cpu')),
