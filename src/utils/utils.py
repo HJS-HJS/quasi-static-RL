@@ -31,6 +31,12 @@ def save_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     torch.save(network.state_dict(), save_path)
     print(f"\tModels saved at episode {episode}")
 
+def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, f"{episode}_{name}.pth")
+    torch.save({'tensor': tensor, 'grad': tensor.grad}, save_path)
+    print(f"\tModels saved at episode {episode}")
+
 def load_model(network:torch.nn.Module, save_dir:str, name:str):
     save_path = os.path.join(save_dir, f"{name}.pth")
     if os.path.exists(save_path):
@@ -40,3 +46,12 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str):
     else:
         print(f"\tNo saved model found {save_path}")
     return network
+
+def load_tensor(tensor:torch.tensor, save_dir:str, name:str):
+    save_path = os.path.join(save_dir, f"{name}.pth")
+    if os.path.exists(save_path):
+        tensor = torch.load(save_path)
+        print(f"\tModels loaded from {save_path}")
+    else:
+        print(f"\tNo saved model found {save_path}")
+    return tensor
