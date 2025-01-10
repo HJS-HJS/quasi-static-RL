@@ -14,11 +14,13 @@ current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from third_party.quasi_static_push.scripts.dish_simulation import DishSimulation
 from utils.sac_dataset import SACDataset
-from utils.utils       import live_plot, show_result, save_model, save_tensor, load_model, load_tensor
+from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_tensor
 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
+LOAD            = False
+FILE_NAME = "0"
 # Learning frame
 FRAME = 10
 # Learning Parameters
@@ -35,11 +37,10 @@ BATCH_SIZE = 256
 EPOCH_SIZE = 2
 # Other
 visulaize_step = 5
-MAX_STEP = 2048         # maximun available step per episode
+MAX_STEP = 1024         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn"
-FILE_NAME = "0"
 
 sim = DishSimulation(
     visualize=None,
@@ -164,6 +165,15 @@ alpha.requires_grad = True
 target_q1_net.load_state_dict(q1_net.state_dict())
 target_q2_net.load_state_dict(q2_net.state_dict())
 
+if LOAD:
+    actor_net, q1_net, q2_net, target_q1_net, target_q2_net = load_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
+                    , SAVE_DIR, 
+                    ["actor", "q1", "q2", "target_q1", "target_q2"]
+                    , FILE_NAME
+                    )
+    alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
+    alpha.requires_grad = True
+    
 # Optimizer
 actor_optimizer   = torch.optim.AdamW(actor_net.parameters(), lr=LEARNING_RATE)
 q1_optimizer = torch.optim.AdamW(q1_net.parameters(), lr=LEARNING_RATE)
@@ -209,7 +219,6 @@ def optimize_model(batch):
 
 total_steps = []
 step_done_set = []
-reward_set = []
 if TRAIN:
     for episode in range(1, EPISODES + 1):
 
@@ -219,9 +228,7 @@ if TRAIN:
 
         # Running one episode
         total_reward = 0.0
-        success_count = 0
-        stop_count = 0
-        for step in range(MAX_STEP):
+        for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
             with torch.no_grad():
                 action, logprob = actor_net(state_curr)
@@ -259,20 +266,20 @@ if TRAIN:
         # Save episode reward
         step_done_set.append(step)
         # Visualize
-        if (len(total_steps) != 0) and (step <= min(total_steps)):
-            save_model(actor_net, SAVE_DIR, "actor", episode)
-            save_model(q1_net, SAVE_DIR, "q1", episode)
-            save_model(q2_net, SAVE_DIR, "q2", episode)
-            save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
-            save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+        if (len(total_steps) != 0) and (step < min(total_steps)):
+            save_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
+                         , SAVE_DIR, 
+                         ["actor", "q1", "q2", "target_q1", "target_q2"]
+                         , episode
+                         )
             save_tensor(alpha, SAVE_DIR, "alpha", episode)
         if episode % visulaize_step == 0:
             if (len(total_steps) != 0) and (np.mean(step_done_set) < min(total_steps)):
-                save_model(actor_net, SAVE_DIR, "actor", episode)
-                save_model(q1_net, SAVE_DIR, "q1", episode)
-                save_model(q2_net, SAVE_DIR, "q2", episode)
-                save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
-                save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+                save_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
+                            , SAVE_DIR, 
+                            ["actor", "q1", "q2", "target_q1", "target_q2"]
+                            , episode
+                            )
                 save_tensor(alpha, SAVE_DIR, "alpha", episode)
             total_steps.append(np.mean(step_done_set))
             print("#{}: ".format(episode), np.mean(step_done_set).astype(int))

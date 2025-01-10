@@ -26,20 +26,31 @@ def show_result(total_steps, step, save_dir:None):
     plt.show()
 
 def save_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
-    os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, f"{episode}_{name}.pth")
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    os.makedirs(_save_dir, exist_ok=True)
+    save_path = os.path.join(_save_dir, f"{name}.pth")
     torch.save(network.state_dict(), save_path)
     print(f"\tModels saved at episode {episode}")
 
-def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
-    os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, f"{episode}_{name}.pth")
-    torch.save({'tensor': tensor, 'grad': tensor.grad}, save_path)
+def save_models(networks:list[torch.nn.Module], save_dir:str, names:list[str], episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    os.makedirs(_save_dir, exist_ok=True)
+    for net, name in zip(networks, names):
+        save_path = os.path.join(_save_dir, f"{str(name)}.pth")
+        torch.save(net.state_dict(), save_path)
     print(f"\tModels saved at episode {episode}")
 
-def load_model(network:torch.nn.Module, save_dir:str, name:str):
-    save_path = os.path.join(save_dir, f"{name}.pth")
-    if os.path.exists(save_path):
+def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    os.makedirs(_save_dir, exist_ok=True)
+    save_path = os.path.join(_save_dir, f"{str(name)}.pth")
+    torch.save(tensor, save_path)
+    print(f"\tModels saved at episode {episode}")
+
+def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    save_path = os.path.join(_save_dir, f"{str(name)}.pth")
+    if os.path.exists(_save_dir):
         state_dict = torch.load(save_path, weights_only=True)
         network.load_state_dict(state_dict)
         print(f"\tModels loaded from {save_path}")
@@ -47,8 +58,21 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str):
         print(f"\tNo saved model found {save_path}")
     return network
 
-def load_tensor(tensor:torch.tensor, save_dir:str, name:str):
-    save_path = os.path.join(save_dir, f"{name}.pth")
+def load_models(networks:list[torch.nn.Module], save_dir:str, names:list[str], episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    for idx in range(len(networks)):
+        save_path = os.path.join(_save_dir, f"{str(names[idx])}.pth")
+        if os.path.exists(_save_dir):
+            state_dict = torch.load(save_path, weights_only=True)
+            networks[idx].load_state_dict(state_dict)
+        else:
+            print(f"\tNo saved model found {save_path}")
+    print(f"\tModels loaded from {_save_dir}")
+    return networks
+
+def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     if os.path.exists(save_path):
         tensor = torch.load(save_path)
         print(f"\tModels loaded from {save_path}")
