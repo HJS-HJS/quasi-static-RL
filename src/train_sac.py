@@ -19,7 +19,7 @@ from utils.utils         import live_plot, show_result, save_model, load_model
 ## Parameters
 TRAIN           = True
 # Learning frame
-FRAME = 2
+FRAME = 8
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
@@ -31,13 +31,14 @@ LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 100000
 BATCH_SIZE = 256
-EPOCH_SIZE = 4
+# EPOCH_SIZE = 4
+EPOCH_SIZE = 2
 # Other
 visulaize_step = 5
 MAX_STEP = 2048         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/model/SAC_linear"
+SAVE_DIR = current_directory + "/../model/SAC_linear"
 FILE_NAME = "135_actor"
 
 sim = DishSimulation(
@@ -224,11 +225,11 @@ if TRAIN:
                     optimize_model(memory.sample(BATCH_SIZE))
 
             if done: 
-                if reward < 5: step = MAX_STEP
                 break
 
         ## Episode is finished
-        print("\t", episode, "\t", step)
+        print("\t", episode, "\t", step, "\t", total_reward)
+        if done and (reward < 5): step = MAX_STEP * 1.5
         
         # Save episode reward
         step_done_set.append(step)
