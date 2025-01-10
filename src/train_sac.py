@@ -29,7 +29,7 @@ TARGET_ENTROPY  = -6.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 10000
+MEMORY_CAPACITY = 50000
 BATCH_SIZE = 256
 EPOCH_SIZE = 2
 # Other
@@ -224,7 +224,7 @@ if TRAIN:
                 break
 
         ## Episode is finished
-        print(episode, "\t", step, "\t", len(memory))
+        print("\t", episode, "\t", step)
         
         # Save episode reward
         step_done_set.append(step)
