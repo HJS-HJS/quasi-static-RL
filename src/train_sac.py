@@ -14,16 +14,16 @@ current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from third_party.quasi_static_push.scripts.dish_simulation import DishSimulation
 from utils.sac_dataset   import SACDataset
-from utils.utils         import live_plot, show_result, save_model, load_model
+from utils.utils         import live_plot, show_result, save_model, save_tensor, load_model, load_tensor
 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
 # Learning frame
-FRAME = 8
+FRAME = 10
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
-DISCOUNT_FACTOR = 0.99   # gamma
+DISCOUNT_FACTOR = 0.999   # gamma
 TARGET_UPDATE_TAU= 0.005
 EPISODES        = 2000   # total episode
 TARGET_ENTROPY  = -4.0
@@ -39,7 +39,7 @@ MAX_STEP = 2048         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_linear"
-FILE_NAME = "135_actor"
+FILE_NAME = "0"
 
 sim = DishSimulation(
     visualize=None,
@@ -193,27 +193,27 @@ if TRAIN:
 
         # 0. Reset environment
         state_curr, _, _ = sim.env.reset(slider_num=0)
-        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device)
+        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
         total_reward = 0.0
         for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
-            action, logprob = actor_net(state_curr.unsqueeze(0))
+            action, logprob = actor_net(state_curr)
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done = sim.env.step(action[0].tolist())
             total_reward += reward
 
             # 3. Update state
-            state_next = torch.tensor(state_next, dtype=torch.float32, device=device)
+            state_next = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
 
             # 4. Save data
             memory.push(
-                state_curr.unsqueeze(0),
+                state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
-                state_next.unsqueeze(0),
+                state_next,
             )
 
             # 5. Update state
@@ -236,9 +236,19 @@ if TRAIN:
         # Visualize
         if (len(total_steps) != 0) and (step <= min(total_steps)):
             save_model(actor_net, SAVE_DIR, "actor", episode)
+            save_model(q1_net, SAVE_DIR, "q1", episode)
+            save_model(q2_net, SAVE_DIR, "q2", episode)
+            save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
+            save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+            save_tensor(alpha, SAVE_DIR, "alpha", episode)
         if episode % visulaize_step == 0:
             if (len(total_steps) != 0) and (np.mean(step_done_set) < min(total_steps)):
                 save_model(actor_net, SAVE_DIR, "actor", episode)
+                save_model(q1_net, SAVE_DIR, "q1", episode)
+                save_model(q2_net, SAVE_DIR, "q2", episode)
+                save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
+                save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+                save_tensor(alpha, SAVE_DIR, "alpha", episode)
             total_steps.append(np.mean(step_done_set))
             print("#{}: ".format(episode), np.mean(step_done_set).astype(int))
             live_plot(total_steps, visulaize_step)
@@ -256,11 +266,16 @@ else:
                         random_place=True,
                         action_skip=FRAME
                         )
-    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME)
+    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME + "_actor")
+    q1_net = load_model(q1_net, SAVE_DIR, FILE_NAME + "_q1")
+    q2_net = load_model(q2_net, SAVE_DIR, FILE_NAME + "_q2")
+    target_q1_net = load_model(target_q1_net, SAVE_DIR, FILE_NAME + "_target_q1")
+    target_q2_net = load_model(target_q2_net, SAVE_DIR, FILE_NAME + "_target_q2")
+    alpha = load_tensor(alpha, SAVE_DIR, FILE_NAME + "_alpha")
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=0)
-    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device)
+    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
     # Running one episode
     for step in range(MAX_STEP):
@@ -269,7 +284,7 @@ else:
 
         # 2. Run simulation 1 step (Execute action and observe reward)
         state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device)
+        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
 
 # Turn the sim off
 sim.env.close()

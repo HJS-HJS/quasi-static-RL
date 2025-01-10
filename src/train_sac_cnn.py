@@ -14,23 +14,23 @@ current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from third_party.quasi_static_push.scripts.dish_simulation import DishSimulation
 from utils.sac_dataset import SACDataset
-from utils.utils       import live_plot, show_result, save_model, load_model
+from utils.utils       import live_plot, show_result, save_model, save_tensor, load_model, load_tensor
 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
 # Learning frame
-FRAME = 8
+FRAME = 10
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
-DISCOUNT_FACTOR = 0.99   # gamma
+DISCOUNT_FACTOR = 0.999   # gamma
 TARGET_UPDATE_TAU= 0.005
 EPISODES        = 2000   # total episode
 TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 50000
+MEMORY_CAPACITY = 100000
 BATCH_SIZE = 256
 EPOCH_SIZE = 2
 # Other
@@ -39,11 +39,11 @@ MAX_STEP = 2048         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn"
-FILE_NAME = "310_actor"
+FILE_NAME = "0"
 
 sim = DishSimulation(
     visualize=None,
-    state="image",
+    state="gray",
     random_place=True,
     action_skip=FRAME,
     )
@@ -55,7 +55,7 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = 3 # 81
+N_INPUTS    = sim.env.observation_space.shape[2] # 81
 N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
 
 # Memory
@@ -261,9 +261,19 @@ if TRAIN:
         # Visualize
         if (len(total_steps) != 0) and (step <= min(total_steps)):
             save_model(actor_net, SAVE_DIR, "actor", episode)
+            save_model(q1_net, SAVE_DIR, "q1", episode)
+            save_model(q2_net, SAVE_DIR, "q2", episode)
+            save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
+            save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+            save_tensor(alpha, SAVE_DIR, "alpha", episode)
         if episode % visulaize_step == 0:
             if (len(total_steps) != 0) and (np.mean(step_done_set) < min(total_steps)):
                 save_model(actor_net, SAVE_DIR, "actor", episode)
+                save_model(q1_net, SAVE_DIR, "q1", episode)
+                save_model(q2_net, SAVE_DIR, "q2", episode)
+                save_model(target_q1_net, SAVE_DIR, "target_q1", episode)
+                save_model(target_q2_net, SAVE_DIR, "target_q2", episode)
+                save_tensor(alpha, SAVE_DIR, "alpha", episode)
             total_steps.append(np.mean(step_done_set))
             print("#{}: ".format(episode), np.mean(step_done_set).astype(int))
             live_plot(total_steps, visulaize_step)
@@ -277,15 +287,20 @@ if TRAIN:
 
 else:
     sim = DishSimulation(visualize="human",
-                         state="image",
+                         state="gray",
                          random_place=True,
                          action_skip=FRAME
                          )
-    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME)
+    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME + "_actor")
+    q1_net = load_model(q1_net, SAVE_DIR, FILE_NAME + "_q1")
+    q2_net = load_model(q2_net, SAVE_DIR, FILE_NAME + "_q2")
+    target_q1_net = load_model(target_q1_net, SAVE_DIR, FILE_NAME + "_target_q1")
+    target_q2_net = load_model(target_q2_net, SAVE_DIR, FILE_NAME + "_target_q2")
+    alpha = load_tensor(alpha, SAVE_DIR, FILE_NAME + "_alpha")
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=0)
-    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device)
+    state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
     # Running one episode
     for step in range(MAX_STEP):
@@ -295,7 +310,7 @@ else:
 
         # 2. Run simulation 1 step (Execute action and observe reward)
         state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device)
+        state_curr = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
 
 # Turn the sim off
 sim.env.close()
