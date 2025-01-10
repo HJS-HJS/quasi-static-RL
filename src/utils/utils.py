@@ -31,7 +31,7 @@ def save_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     os.makedirs(_save_dir, exist_ok=True)
     save_path = os.path.join(_save_dir, f"{name}.pth")
     torch.save(network.state_dict(), save_path)
-    print(f"\tModels saved at episode {episode}")
+    print(f"\t\tModels saved at episode {episode}")
 
 def save_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
@@ -39,14 +39,14 @@ def save_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], e
     for net, name in zip(networks, names):
         save_path = os.path.join(_save_dir, f"{str(name)}.pth")
         torch.save(net.state_dict(), save_path)
-    print(f"\tModels saved at episode {episode}")
+    print(f"\t\tModels saved at episode {episode}")
 
 def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
     os.makedirs(_save_dir, exist_ok=True)
     save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     torch.save(tensor, save_path)
-    print(f"\tModels saved at episode {episode}")
+    # print(f"\t\tModels saved at episode {episode}")
 
 def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
