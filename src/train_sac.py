@@ -189,7 +189,6 @@ if TRAIN:
         # 0. Reset environment
         state_curr, _, _ = sim.env.reset(slider_num=0)
         state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device)
-        # state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device)
 
         # Running one episode
         total_reward = 0.0
@@ -198,17 +197,16 @@ if TRAIN:
             action, logprob = actor_net(state_curr.unsqueeze(0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
-            state_next, reward, done = sim.env.step(action.detach().cpu().numpy())
+            state_next, reward, done = sim.env.step(action[0].tolist())
             total_reward += reward
 
             # 3. Update state
             state_next = torch.tensor(state_next, dtype=torch.float32, device=device)
-            # state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device)
 
             # 4. Save data
             memory.push(
                 state_curr.unsqueeze(0),
-                action.unsqueeze(0),
+                action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.unsqueeze(0),
             )
@@ -265,9 +263,8 @@ else:
         action, logprob = actor_net(state_curr)
 
         # 2. Run simulation 1 step (Execute action and observe reward)
-        state_next, reward, done = sim.env.step(action.detach().cpu().numpy())
+        state_next, reward, done = sim.env.step(action[0].tolist())
         state_curr = torch.tensor(state_next, dtype=torch.float32, device=device)
-        # state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device)
 
 # Turn the sim off
 sim.env.close()
