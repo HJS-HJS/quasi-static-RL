@@ -3,6 +3,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from typing import List
 
 def plot(total_steps, step):
     plt.figure(1)
@@ -32,7 +33,7 @@ def save_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     torch.save(network.state_dict(), save_path)
     print(f"\tModels saved at episode {episode}")
 
-def save_models(networks:list[torch.nn.Module], save_dir:str, names:list[str], episode:int):
+def save_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
     os.makedirs(_save_dir, exist_ok=True)
     for net, name in zip(networks, names):
@@ -58,7 +59,7 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
         print(f"\tNo saved model found {save_path}")
     return network
 
-def load_models(networks:list[torch.nn.Module], save_dir:str, names:list[str], episode:int):
+def load_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
     for idx in range(len(networks)):
         save_path = os.path.join(_save_dir, f"{str(names[idx])}.pth")
