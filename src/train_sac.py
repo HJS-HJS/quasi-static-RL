@@ -17,6 +17,7 @@ from utils.sac_dataset   import SACDataset
 from utils.utils         import live_plot, show_result, save_model, load_model
 
 ## Parameters
+# TRAIN           = False
 TRAIN           = True
 # Learning frame
 FRAME = 8
