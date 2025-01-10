@@ -235,7 +235,7 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr,
+                state_curr.to(torch.device('cpu')),
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.to(torch.device('cpu')),
