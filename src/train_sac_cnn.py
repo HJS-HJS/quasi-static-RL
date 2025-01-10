@@ -32,9 +32,9 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 100000
+MEMORY_CAPACITY = 40000
 BATCH_SIZE = 256
-EPOCH_SIZE = 2
+EPOCH_SIZE = 3
 # Other
 visulaize_step = 5
 MAX_STEP = 1024         # maximun available step per episode
@@ -242,7 +242,7 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr.to(torch.device('cpu')),
+                state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.to(torch.device('cpu')),
