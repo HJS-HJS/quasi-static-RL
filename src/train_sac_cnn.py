@@ -13,10 +13,11 @@ current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from third_party.quasi_static_push.scripts.dish_simulation import DishSimulation
-from utils.sac_dataset   import SACDataset
-from utils.utils         import live_plot, show_result, save_model, load_model
+from utils.sac_dataset import SACDataset
+from utils.utils       import live_plot, show_result, save_model, load_model
 
 ## Parameters
+# TRAIN           = False
 TRAIN           = True
 # Learning frame
 FRAME = 8
@@ -29,7 +30,7 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 100000
+MEMORY_CAPACITY = 50000
 BATCH_SIZE = 256
 EPOCH_SIZE = 2
 # Other
@@ -37,15 +38,16 @@ visulaize_step = 5
 MAX_STEP = 2048         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_linear"
-FILE_NAME = "135_actor"
+SAVE_DIR = current_directory + "/../model/SAC_cnn"
+FILE_NAME = "310_actor"
 
 sim = DishSimulation(
     visualize=None,
-    state="linear",
+    state="image",
     random_place=True,
     action_skip=FRAME,
     )
+
 device = torch.device('cpu')
 if torch.cuda.is_available():
     print("CUDA is available")
@@ -53,7 +55,7 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = sim.env.observation_space.shape[0] # 81
+N_INPUTS    = 3 # 81
 N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
 
 # Memory
@@ -63,11 +65,20 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 128),
+            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1),
+            nn.Linear(256 * 1, 256),
             nn.ReLU(),
         )
 
@@ -99,7 +110,20 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Linear(n_state, 128),
+            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1),
+            nn.Linear(256 * 1, 128),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -109,9 +133,7 @@ class QNetwork(nn.Module):
         self.layer = nn.Sequential(
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1),
+            nn.Linear(256, 1),
         )
 
     def forward(self, state, action):
@@ -187,32 +209,36 @@ def optimize_model(batch):
 
 total_steps = []
 step_done_set = []
+reward_set = []
 if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
         state_curr, _, _ = sim.env.reset(slider_num=0)
-        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device)
+        state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
         total_reward = 0.0
-        for step in range(1, MAX_STEP + 1):
+        success_count = 0
+        stop_count = 0
+        for step in range(MAX_STEP):
             # 1. Get action from policy network
-            action, logprob = actor_net(state_curr.unsqueeze(0))
+            with torch.no_grad():
+                action, logprob = actor_net(state_curr)
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done = sim.env.step(action[0].tolist())
             total_reward += reward
 
             # 3. Update state
-            state_next = torch.tensor(state_next, dtype=torch.float32, device=device)
+            state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
 
             # 4. Save data
             memory.push(
-                state_curr.unsqueeze(0),
+                state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
-                state_next.unsqueeze(0),
+                state_next.to(torch.device('cpu')),
             )
 
             # 5. Update state
@@ -223,7 +249,7 @@ if TRAIN:
                 for _ in range(EPOCH_SIZE):
                     optimize_model(memory.sample(BATCH_SIZE))
 
-            if done: 
+            if done:
                 break
 
         ## Episode is finished
@@ -251,10 +277,10 @@ if TRAIN:
 
 else:
     sim = DishSimulation(visualize="human",
-                        state="linear",
-                        random_place=True,
-                        action_skip=FRAME
-                        )
+                         state="image",
+                         random_place=True,
+                         action_skip=FRAME
+                         )
     actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME)
 
     # 0. Reset environment
@@ -264,7 +290,8 @@ else:
     # Running one episode
     for step in range(MAX_STEP):
         # 1. Get action from policy network
-        action, logprob = actor_net(state_curr)
+        with torch.no_grad():
+            action, logprob = actor_net(state_curr)
 
         # 2. Run simulation 1 step (Execute action and observe reward)
         state_next, reward, done = sim.env.step(action[0].tolist())
