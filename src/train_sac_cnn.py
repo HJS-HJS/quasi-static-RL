@@ -33,7 +33,7 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 40000
+MEMORY_CAPACITY = 50000
 BATCH_SIZE = 256
 EPOCH_SIZE = 3
 # Other
@@ -49,7 +49,6 @@ sim = DishSimulation(
     random_place=True,
     action_skip=FRAME,
     )
-
 device = torch.device('cpu')
 if torch.cuda.is_available():
     print("CUDA is available")
