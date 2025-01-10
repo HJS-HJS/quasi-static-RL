@@ -38,7 +38,7 @@ visulaize_step = 5
 MAX_STEP = 2048         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_linear"
+SAVE_DIR = current_directory + "/../model/SAC_linear_test"
 FILE_NAME = "135_actor"
 
 sim = DishSimulation(
