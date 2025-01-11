@@ -354,15 +354,14 @@ class Simulation():
         # if (dist - self.dist) < 1e-3:
         #     reward += 0.1
         # else: reward += -0.2
-
-        if (dist - self.dist) < 1e-3:
-            reward += -0.1
-        else: reward += -0.2
+        if (dist - self.dist) < -1e-2:
+            pass
+        else: reward += -0.1
 
         self.dist = dist
 
         done = False
-        if dist < 0.02:
+        if dist < 0.025:
             
             _width = 10.
             print("\ttry grasp")
