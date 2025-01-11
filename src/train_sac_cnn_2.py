@@ -36,11 +36,11 @@ ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 10000
-BATCH_SIZE = 128
-EPOCH_SIZE = 4
+BATCH_SIZE = 64
+EPOCH_SIZE = 2
 # Other
 visulaize_step = 5
-MAX_STEP = 1024         # maximun available step per episode
+MAX_STEP = 256         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn_2"
