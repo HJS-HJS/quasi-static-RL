@@ -35,17 +35,17 @@ LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 10000
 BATCH_SIZE = 256
-EPOCH_SIZE = 3
+EPOCH_SIZE = 1
 # Other
 visulaize_step = 5
 MAX_STEP = 1024         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_cnn"
+SAVE_DIR = current_directory + "/../model/SAC_cnn_2"
 
 sim = DishSimulation(
     visualize=None,
-    state="gray",
+    state="image",
     random_place=True,
     action_skip=FRAME,
     )
@@ -56,8 +56,8 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = sim.env.observation_space.shape[2] # 81
-N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
+N_INPUTS    = sim.env.observation_space.shape[2] # 3, 1
+N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5 - 1
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
@@ -66,20 +66,16 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
+            nn.Conv2d(in_channels=n_state, out_channels=64, kernel_size=8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 1, 256),
+            nn.Linear(256 * 2*2, 256),
             nn.ReLU(),
         )
 
@@ -111,20 +107,16 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
+            nn.Conv2d(in_channels=n_state, out_channels=64, kernel_size=8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 1, 128),
+            nn.Linear(256 * 2*2, 128),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -132,9 +124,9 @@ class QNetwork(nn.Module):
             nn.ReLU(),
         )
         self.layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(256, 1),
+            nn.Linear(128, 1),
         )
 
     def forward(self, state, action):

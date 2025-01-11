@@ -35,7 +35,7 @@ LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 100000
 BATCH_SIZE = 256
-EPOCH_SIZE = 4
+EPOCH_SIZE = 2
 # Other
 visulaize_step = 5
 MAX_STEP = 2048         # maximun available step per episode
