@@ -42,7 +42,7 @@ class Simulation():
         else: self.visualization = False
 
         ## Get config file
-        with open(os.path.dirname(os.path.abspath(__file__)) + "/../third_party/quasi_static_push/config/config.yaml") as f:
+        with open(os.path.dirname(os.path.abspath(__file__)) + "/../../config/config.yaml") as f:
             self.config = yaml.load(f,Loader=yaml.FullLoader)
 
         # Set patameters
@@ -228,8 +228,8 @@ class Simulation():
                     ])
                 self.screen.blit(_surface[0], _surface[1])
             # Show updated pygame display
-            _q = (int(self.param.pushers.q[0] / self.unit + self.display_center[0] - 8),
-                  int(-self.param.pushers.q[1] / self.unit + self.display_center[1] - 8))
+            _q = (int(self.param.pushers.q[0] / self.unit + self.display_center[0] - 16),
+                  int(-self.param.pushers.q[1] / self.unit + self.display_center[1] - 16))
             self.screen.blit(self.pusher_center, _q)
             pygame.display.flip()
             return
@@ -317,7 +317,6 @@ class Simulation():
             surface = pygame.display.get_surface()
             img = pygame.surfarray.array3d(surface)
             gray_img = np.dot(img[..., :], [0.299, 0.587, 0.114])
-            state = (2 * (gray_img / 255.0) - 1)
             state = np.expand_dims(state, axis=2)
         else:
             # Linear
@@ -527,7 +526,7 @@ class Simulation():
         pygame.draw.line(polygon_surface, COLOR["WHITE"], (width / 2, height / 4), (width / 2, height * 3 / 4), 3)   # Draw vertical line
         return polygon_surface
 
-    def create_bead_surface(self, radius = 6, width = 2):
+    def create_bead_surface(self, radius = 12, width = 4):
         # Generate pygame surface
         lengh = (radius + width) * 2
         polygon_surface = pygame.Surface((lengh,lengh), pygame.SRCALPHA)
