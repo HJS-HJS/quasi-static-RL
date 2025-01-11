@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import random
+import time
 
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
@@ -23,7 +24,7 @@ TRAIN           = True
 LOAD            = False
 FILE_NAME = "0"
 # Learning frame
-FRAME = 8
+FRAME = 4
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
@@ -206,6 +207,7 @@ if TRAIN:
 
         # Running one episode
         total_reward = 0.0
+        start_time = time.time()
         for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
             action, logprob = actor_net(state_curr)
@@ -237,7 +239,7 @@ if TRAIN:
                 break
 
         ## Episode is finished
-        print("\t", episode, "\t", step, "\t", total_reward)
+        print("\t", episode, "\t", step, "\t", total_reward, "{:.2f}".format(time.time() - start_time))
         if done and (reward < 5): step = MAX_STEP
         
         # Save episode reward
