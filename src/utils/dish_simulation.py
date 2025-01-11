@@ -172,7 +172,8 @@ class Simulation():
         _q = np.sign(sliders[0].q[0:2]) * 0.85 * np.array([WIDTH, HEIGHT]) / 2 * self.unit
 
         # Initialize pusher position and velocity
-        self.pushers.apply_q([_q[0], _q[1], 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)])
+        self.pushers.apply_q([_q[0] * random.choice([1, -1]), _q[1] * random.choice([1, -1]), 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)])
+        # self.pushers.apply_q([_q[0], _q[1], 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)])
         self.pushers.apply_v([0., 0., 0., 0.])
 
         # Generate pygame object surfaces
@@ -332,9 +333,9 @@ class Simulation():
                 _sliders[5*idx:5*idx+5] = np.hstack((slider.q, slider.a, slider.b))
 
             # Normalize
-            _pusher[3] =  (_pusher[3] - self.pusher_d_l_limit) / (self.pusher_d_u_limit - self.pusher_d_l_limit)
-            _pusher[2] /= np.pi
-            _sliders[2::5] /= np.pi
+            _pusher[3]     = (_pusher[3] - self.pusher_d_l_limit) / (self.pusher_d_u_limit - self.pusher_d_l_limit) - 0.5
+            _pusher[2]     = (_pusher[2]     % (2 * np.pi)) / np.pi - 1
+            _sliders[2::5] = (_sliders[2::5] % (2 * np.pi)) / np.pi - 1
 
             state = np.hstack((_table, _pusher, _sliders))
 
@@ -355,6 +356,8 @@ class Simulation():
         #     reward += 0.1
         # else: reward += -0.2
         if (dist - self.dist) < -1e-2:
+        # if (dist - self.dist) < -2e-2:
+            # reward += 0.1
             pass
         else: reward += -0.1
 
@@ -586,7 +589,7 @@ class DishSimulation():
         del self.env
 
 if __name__=="__main__":
-    sim = DishSimulation(state='linear')
+    sim = DishSimulation(state='linear', action_skip=1)
     # sim = DishSimulation()
     observ_space = sim.env.observation_space.shape[0]
     action_space = sim.env.action_space.shape[0]
@@ -594,6 +597,7 @@ if __name__=="__main__":
     while True:
         action, reset = sim.keyboard_input(action)
         state, reward, done = sim.env.step(action=action[:4])
+        print(state)
         if reset or done:
             # sim.env.reset(slider_num=1)
             sim.env.reset(  )

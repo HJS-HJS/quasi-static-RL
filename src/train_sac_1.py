@@ -16,13 +16,13 @@ current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
 from utils.dish_simulation import DishSimulation
 
-from utils.sac_dataset import SACDataset
-from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
+from utils.sac_dataset   import SACDataset
+from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-LOAD            = False
+LOAD            = True
 FILE_NAME = "0"
 # Learning frame
 FRAME = 6
@@ -35,19 +35,19 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 7000
-BATCH_SIZE = 64
-EPOCH_SIZE = 3
+MEMORY_CAPACITY = 50000
+BATCH_SIZE = 128
+EPOCH_SIZE = 4
 # Other
-visulaize_step = 5
-MAX_STEP = 100         # maximun available step per episode
+visulaize_step = 10
+MAX_STEP = 512         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_cnn_2"
+SAVE_DIR = current_directory + "/../model/SAC_linear_1"
 
 sim = DishSimulation(
     visualize=None,
-    state="image",
+    state="linear",
     random_place=True,
     action_skip=FRAME,
     )
@@ -58,8 +58,8 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = sim.env.observation_space.shape[2] # 3, 1
-N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5 - 1
+N_INPUTS    = sim.env.observation_space.shape[0] # 81
+N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
@@ -68,16 +68,11 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=64, kernel_size=8, stride=4),
+            nn.Linear(n_state, 128),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=4),
+            nn.Linear(128, 256),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            nn.Linear(256 * 2*2, 256),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
@@ -109,16 +104,7 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=64, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            nn.Linear(256 * 2*2, 128),
+            nn.Linear(n_state, 128),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -126,6 +112,8 @@ class QNetwork(nn.Module):
             nn.ReLU(),
         )
         self.layer = nn.Sequential(
+            nn.Linear(256, 256),
+            nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 1),
@@ -167,7 +155,7 @@ if LOAD:
                     )
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
     alpha.requires_grad = True
-    
+
 # Optimizer
 actor_optimizer   = torch.optim.AdamW(actor_net.parameters(), lr=LEARNING_RATE)
 q1_optimizer = torch.optim.AdamW(q1_net.parameters(), lr=LEARNING_RATE)
@@ -217,30 +205,31 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
+        # max_dish = np.min([10, EPISODES // 100])
+        # state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr, _, _ = sim.env.reset(slider_num=0)
-        state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
+        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
         total_reward = 0.0
         start_time = time.time()
         for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
-            with torch.no_grad():
-                action, logprob = actor_net(state_curr)
+            action, logprob = actor_net(state_curr)
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done = sim.env.step(action[0].tolist())
             total_reward += reward
 
             # 3. Update state
-            state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
+            state_next = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
 
             # 4. Save data
             memory.push(
                 state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
-                state_next.to(torch.device('cpu')),
+                state_next,
             )
 
             # 5. Update state
@@ -251,11 +240,11 @@ if TRAIN:
                 for _ in range(EPOCH_SIZE):
                     optimize_model(memory.sample(BATCH_SIZE))
 
-            if done:
+            if done: 
                 break
 
         ## Episode is finished
-        print("\t", episode, "\t", step, "\t", total_reward, "{:.2f}".format(time.time() - start_time))
+        print("\t", episode, "\t", step, "\t{:.2f}\t{:.2f}".format(total_reward, time.time() - start_time))
         if done and (reward < 5): step = MAX_STEP
         
         # Save episode reward
@@ -289,30 +278,29 @@ if TRAIN:
 
 else:
     sim = DishSimulation(visualize="human",
-                         state="gray",
-                         random_place=True,
-                         action_skip=FRAME
-                         )
-    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME + "_actor")
-    q1_net = load_model(q1_net, SAVE_DIR, FILE_NAME + "_q1")
-    q2_net = load_model(q2_net, SAVE_DIR, FILE_NAME + "_q2")
-    target_q1_net = load_model(target_q1_net, SAVE_DIR, FILE_NAME + "_target_q1")
-    target_q2_net = load_model(target_q2_net, SAVE_DIR, FILE_NAME + "_target_q2")
-    alpha = load_tensor(alpha, SAVE_DIR, FILE_NAME + "_alpha")
+                        state="linear",
+                        random_place=True,
+                        action_skip=FRAME
+                        )
+    actor_net = load_model(actor_net, SAVE_DIR, "actor", FILE_NAME)
+    q1_net = load_model(q1_net, SAVE_DIR, "q1", FILE_NAME)
+    q2_net = load_model(q2_net, SAVE_DIR, "q2", FILE_NAME)
+    target_q1_net = load_model(target_q1_net, SAVE_DIR, "target_q1", FILE_NAME)
+    target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
+    alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=0)
-    state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
+    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
     # Running one episode
     for step in range(MAX_STEP):
         # 1. Get action from policy network
-        with torch.no_grad():
-            action, logprob = actor_net(state_curr)
+        action, logprob = actor_net(state_curr)
 
         # 2. Run simulation 1 step (Execute action and observe reward)
         state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
+        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
 
 # Turn the sim off
 sim.env.close()
