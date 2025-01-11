@@ -35,7 +35,7 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 10000
+MEMORY_CAPACITY = 7000
 BATCH_SIZE = 64
 EPOCH_SIZE = 2
 # Other
@@ -237,7 +237,7 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr.to(torch.device('cpu')),
+                state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.to(torch.device('cpu')),
