@@ -2,4 +2,5 @@ pygame
 pyyaml
 numpy
 matplotlib
-torch
+# torch
+opencv-python

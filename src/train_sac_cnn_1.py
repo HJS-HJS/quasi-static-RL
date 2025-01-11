@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
+import cv2
 import random
 import time
 
@@ -25,7 +26,7 @@ TRAIN           = True
 LOAD            = False
 FILE_NAME = "0"
 # Learning frame
-FRAME = 4
+FRAME = 6
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
@@ -35,19 +36,20 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 10000
-BATCH_SIZE = 256
+MEMORY_CAPACITY = 7000
+BATCH_SIZE = 64
 EPOCH_SIZE = 3
 # Other
-visulaize_step = 5
-MAX_STEP = 1024         # maximun available step per episode
+visulaize_step = 10
+MAX_STEP = 100         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_cnn"
+SAVE_DIR = current_directory + "/../model/SAC_cnn_1"
+image_reshape = (200,200)
 
 sim = DishSimulation(
     visualize=None,
-    state="gray",
+    state="image",
     random_place=True,
     action_skip=FRAME,
     )
@@ -58,8 +60,8 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = sim.env.observation_space.shape[2] # 81
-N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
+N_INPUTS    = sim.env.observation_space.shape[2] # 3, 1
+N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5 - 1
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
@@ -68,20 +70,18 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
+            nn.Conv2d(in_channels=n_state, out_channels=32, kernel_size=6, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=3),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=3),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=2),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=2, stride=2),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 1, 256),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
@@ -113,20 +113,18 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Conv2d(in_channels=n_state, out_channels=8, kernel_size=6, stride=4),
+            nn.Conv2d(in_channels=n_state, out_channels=32, kernel_size=6, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=3),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=3),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=3),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=3),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=2),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=2, stride=2),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 1, 128),
+            nn.Linear(256, 128),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -134,9 +132,9 @@ class QNetwork(nn.Module):
             nn.ReLU(),
         )
         self.layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(256, 1),
+            nn.Linear(128, 1),
         )
 
     def forward(self, state, action):
@@ -225,13 +223,16 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=0)
+        state_curr, _, _ = sim.env.reset(slider_num=0)        
+        state_curr = cv2.resize(state_curr, image_reshape)
+        state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
         total_reward = 0.0
         start_time = time.time()
         for step in range(1, MAX_STEP + 1):
+            _time = time.time()
             # 1. Get action from policy network
             with torch.no_grad():
                 action, logprob = actor_net(state_curr)
@@ -241,14 +242,16 @@ if TRAIN:
             total_reward += reward
 
             # 3. Update state
+            state_next = cv2.resize(state_next, image_reshape)
+            state_next = (2 * (state_next / 255.0) - 1)
             state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
 
             # 4. Save data
             memory.push(
-                state_curr.to(torch.device('cpu')),
+                state_curr,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
-                state_next.to(torch.device('cpu')),
+                state_next,
             )
 
             # 5. Update state
@@ -263,7 +266,7 @@ if TRAIN:
                 break
 
         ## Episode is finished
-        print("\t", episode, "\t", step, "\t", total_reward, "{:.2f}".format(time.time() - start_time))
+        print("\t", episode, "\t", step, "\t{:.2f}\t{:.2f}".format(total_reward, time.time() - start_time))
         if done and (reward < 5): step = MAX_STEP
         
         # Save episode reward
@@ -301,12 +304,12 @@ else:
                          random_place=True,
                          action_skip=FRAME
                          )
-    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME + "_actor")
-    q1_net = load_model(q1_net, SAVE_DIR, FILE_NAME + "_q1")
-    q2_net = load_model(q2_net, SAVE_DIR, FILE_NAME + "_q2")
-    target_q1_net = load_model(target_q1_net, SAVE_DIR, FILE_NAME + "_target_q1")
-    target_q2_net = load_model(target_q2_net, SAVE_DIR, FILE_NAME + "_target_q2")
-    alpha = load_tensor(alpha, SAVE_DIR, FILE_NAME + "_alpha")
+    actor_net = load_model(actor_net, SAVE_DIR, "actor", FILE_NAME)
+    q1_net = load_model(q1_net, SAVE_DIR, "q1", FILE_NAME)
+    q2_net = load_model(q2_net, SAVE_DIR, "q2", FILE_NAME)
+    target_q1_net = load_model(target_q1_net, SAVE_DIR, "target_q1", FILE_NAME)
+    target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
+    alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=0)

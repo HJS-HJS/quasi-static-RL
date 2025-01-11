@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
+import cv2
 import random
 import time
 
@@ -39,11 +40,12 @@ MEMORY_CAPACITY = 7000
 BATCH_SIZE = 64
 EPOCH_SIZE = 3
 # Other
-visulaize_step = 5
+visulaize_step = 10
 MAX_STEP = 100         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn_2"
+image_reshape = (400,400)
 
 sim = DishSimulation(
     visualize=None,
@@ -77,7 +79,7 @@ class ActorNetwork(nn.Module):
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 2*2, 256),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
@@ -118,7 +120,7 @@ class QNetwork(nn.Module):
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=4),
             nn.ReLU(),
             nn.Flatten(start_dim=1),
-            nn.Linear(256 * 2*2, 128),
+            nn.Linear(256, 128),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -217,7 +219,9 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=0)
+        state_curr, _, _ = sim.env.reset(slider_num=0)        
+        state_curr = cv2.resize(state_curr, image_reshape)
+        state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
@@ -233,11 +237,13 @@ if TRAIN:
             total_reward += reward
 
             # 3. Update state
+            state_next = cv2.resize(state_next, image_reshape)
+            state_next = (2 * (state_next / 255.0) - 1)
             state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
 
             # 4. Save data
             memory.push(
-                state_curr,
+                state_curr.to(torch.device('cpu')),
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
                 state_next.to(torch.device('cpu')),
@@ -255,7 +261,7 @@ if TRAIN:
                 break
 
         ## Episode is finished
-        print("\t", episode, "\t", step, "\t", total_reward, "{:.2f}".format(time.time() - start_time))
+        print("\t", episode, "\t", step, "\t{:.2f}\t{:.2f}".format(total_reward, time.time() - start_time))
         if done and (reward < 5): step = MAX_STEP
         
         # Save episode reward
@@ -293,12 +299,12 @@ else:
                          random_place=True,
                          action_skip=FRAME
                          )
-    actor_net = load_model(actor_net, SAVE_DIR, FILE_NAME + "_actor")
-    q1_net = load_model(q1_net, SAVE_DIR, FILE_NAME + "_q1")
-    q2_net = load_model(q2_net, SAVE_DIR, FILE_NAME + "_q2")
-    target_q1_net = load_model(target_q1_net, SAVE_DIR, FILE_NAME + "_target_q1")
-    target_q2_net = load_model(target_q2_net, SAVE_DIR, FILE_NAME + "_target_q2")
-    alpha = load_tensor(alpha, SAVE_DIR, FILE_NAME + "_alpha")
+    actor_net = load_model(actor_net, SAVE_DIR, "actor", FILE_NAME)
+    q1_net = load_model(q1_net, SAVE_DIR, "q1", FILE_NAME)
+    q2_net = load_model(q2_net, SAVE_DIR, "q2", FILE_NAME)
+    target_q1_net = load_model(target_q1_net, SAVE_DIR, "target_q1", FILE_NAME)
+    target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
+    alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=0)
