@@ -293,14 +293,20 @@ else:
     state_curr, _, _ = sim.env.reset(slider_num=2)
     state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
-    # Running one episode
-    for step in range(MAX_STEP):
-        # 1. Get action from policy network
-        action, logprob = actor_net(state_curr)
+    while True: 
+        # 0. Reset environment
+        state_curr, _, _ = sim.env.reset(slider_num=5)
+        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
-        # 2. Run simulation 1 step (Execute action and observe reward)
-        state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
+        # Running one episode
+        for step in range(MAX_STEP):
+            # 1. Get action from policy network
+            action, logprob = actor_net(state_curr)
+
+            # 2. Run simulation 1 step (Execute action and observe reward)
+            state_next, reward, done = sim.env.step(action[0].tolist())
+            state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
+            if done: break
 
 # Turn the sim off
 sim.env.close()

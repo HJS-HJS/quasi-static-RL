@@ -308,23 +308,25 @@ else:
     target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
-    # 0. Reset environment
-    state_curr, _, _ = sim.env.reset(slider_num=4)
-    state_curr = cv2.resize(state_curr, image_reshape)
-    state_curr = (2 * (state_curr / 255.0) - 1)
-    state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
+    while True: 
+        # 0. Reset environment
+        state_curr, _, _ = sim.env.reset(slider_num=4)
+        state_curr = cv2.resize(state_curr, image_reshape)
+        state_curr = (2 * (state_curr / 255.0) - 1)
+        state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
-    # Running one episode
-    for step in range(MAX_STEP):
-        # 1. Get action from policy network
-        with torch.no_grad():
-            action, logprob = actor_net(state_curr)
+        # Running one episode
+        for step in range(MAX_STEP):
+            # 1. Get action from policy network
+            with torch.no_grad():
+                action, logprob = actor_net(state_curr)
 
-        # 2. Run simulation 1 step (Execute action and observe reward)
-        state_next, reward, done = sim.env.step(action[0].tolist())
-        state_next = cv2.resize(state_next, image_reshape)
-        state_next = (2 * (state_next / 255.0) - 1)
-        state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
+            # 2. Run simulation 1 step (Execute action and observe reward)
+            state_next, reward, done = sim.env.step(action[0].tolist())
+            state_next = cv2.resize(state_next, image_reshape)
+            state_next = (2 * (state_next / 255.0) - 1)
+            state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
+            if done: break
 
 # Turn the sim off
 sim.env.close()

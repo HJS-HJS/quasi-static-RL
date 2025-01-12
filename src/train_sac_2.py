@@ -285,20 +285,20 @@ else:
     target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
-    # 0. Reset environment
-    state_curr, _, _ = sim.env.reset(slider_num=5)
-    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
+    while True: 
+        # 0. Reset environment
+        state_curr, _, _ = sim.env.reset(slider_num=5)
+        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
-    # Running one episode
-    for step in range(MAX_STEP):
-        # 1. Get action from policy network
-        action, logprob = actor_net(state_curr)
+        # Running one episode
+        for step in range(MAX_STEP):
+            # 1. Get action from policy network
+            action, logprob = actor_net(state_curr)
 
-        # 2. Run simulation 1 step (Execute action and observe reward)
-        state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
-        print(action[0].tolist())
-        print(reward)
+            # 2. Run simulation 1 step (Execute action and observe reward)
+            state_next, reward, done = sim.env.step(action[0].tolist())
+            state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
+            if done: break
 
 # Turn the sim off
 sim.env.close()
