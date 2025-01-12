@@ -21,10 +21,10 @@ from utils.sac_dataset import SACDataset
 from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
-TRAIN           = False
-# TRAIN           = True
-LOAD            = False
-# LOAD            = True
+# TRAIN           = False
+TRAIN           = True
+# LOAD            = False
+LOAD            = True
 FILE_NAME = "518"
 # Learning frame
 FRAME = 4

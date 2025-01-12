@@ -372,7 +372,7 @@ class Simulation():
 
         self.dist = dist
 
-        done = False
+        done = not success
         if dist < 0.025:
             
             _width = 10.
