@@ -14,16 +14,16 @@ import time
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
-from utils.dish_simulation import DishSimulation
+from utils.dish_simulation2 import DishSimulation
 
-from utils.sac_dataset   import SACDataset
+from utils.sac_dataset2   import SACDataset
 from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-# LOAD            = False
-LOAD            = True
+LOAD            = False
+# LOAD            = True
 FILE_NAME = "start"
 # Learning frame
 FRAME = 4
@@ -59,32 +59,59 @@ if torch.cuda.is_available():
 
 ## Parameters
 # Policy Parameters
-N_INPUTS    = sim.env.observation_space.shape[0] # 81
+N_INPUTS1   = sim.env.observation_space[0].shape[0] # 81
+N_INPUTS2   = sim.env.observation_space[1].shape[1] # 81
 N_OUTPUT    = sim.env.action_space.shape[0] -1   # 5
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
 
 class ActorNetwork(nn.Module):
-    def __init__(self, n_state:int = 4, n_action:int = 2):
+    def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
             nn.Linear(n_state, 128),
             nn.ReLU(),
             nn.Linear(128, 256),
             nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+        )
+        self.obs1 = nn.Sequential(
+            nn.Conv1d(n_obs,64, kernel_size=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64,128, kernel_size=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Conv1d(128,1024, kernel_size=1),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+        )
+        self.obs2 = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
         )
 
         self.mu = nn.Sequential(
-            nn.Linear(256,n_action),
+            nn.Linear(512,n_action),
         )
         self.std = nn.Sequential(
-            nn.Linear(256,n_action),
+            nn.Linear(512,n_action),
             nn.Softplus(),
         )
 
-    def forward(self, state):
+    def forward(self, state, obs):
         x = self.layer(state)
+        obs = self.obs1(obs)
+        obs = torch.max(obs, 2, keepdim=True)[0]
+        obs = self.obs2(obs)
+
+        x= torch.cat([x, obs], dim=1)
+
         mu = self.mu(x)
         std = self.std(x)
 
@@ -100,10 +127,28 @@ class ActorNetwork(nn.Module):
         return action, logprob
 
 class QNetwork(nn.Module):
-    def __init__(self, n_state:int = 4, n_action:int = 2):
+    def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
             nn.Linear(n_state, 128),
+            nn.ReLU(),
+        )
+        self.obs1_layer = nn.Sequential(
+            nn.Conv1d(n_obs,64, kernel_size=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64,128, kernel_size=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Conv1d(128,1024, kernel_size=1),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+        )
+        self.obs2_layer = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
         )
         self.action_layer = nn.Sequential(
@@ -111,20 +156,25 @@ class QNetwork(nn.Module):
             nn.ReLU(),
         )
         self.layer = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 1),
         )
 
-    def forward(self, state, action):
+    def forward(self, state, obs, action):
         _state = self.state_layer(state)
+        _obs = self.obs1_layer(obs)
+        _obs = torch.max(_obs, 2, keepdim=True)[0]
+        _obs = self.obs2_layer(_obs)
         _action = self.action_layer(action)
-        return self.layer(torch.cat([_state, _action], dim=1))
+        return self.layer(torch.cat([_state, _action, _obs], dim=1))
     
-    def train(self, target, state, action, optimizer):
+    def train(self, target, state, obs, action, optimizer):
         criterion = torch.nn.SmoothL1Loss()
         optimizer.zero_grad()
-        loss = criterion(self.forward(state, action) , target)
+        loss = criterion(self.forward(state, obs, action) , target)
         loss.mean().backward()
         optimizer.step()
 
@@ -133,11 +183,11 @@ class QNetwork(nn.Module):
             target_param.data.copy_(target_param.data * (1.0 - TARGET_UPDATE_TAU) + param.data * TARGET_UPDATE_TAU)
 
 # Initialize network
-actor_net = ActorNetwork(N_INPUTS, N_OUTPUT).to(device)
-q1_net = QNetwork(N_INPUTS, N_OUTPUT).to(device)
-q2_net = QNetwork(N_INPUTS, N_OUTPUT).to(device)
-target_q1_net = QNetwork(N_INPUTS, N_OUTPUT).to(device)
-target_q2_net = QNetwork(N_INPUTS, N_OUTPUT).to(device)
+actor_net = ActorNetwork(N_INPUTS1, N_INPUTS2, N_OUTPUT).to(device)
+q1_net = QNetwork(N_INPUTS1, N_INPUTS2, N_OUTPUT).to(device)
+q2_net = QNetwork(N_INPUTS1, N_INPUTS2, N_OUTPUT).to(device)
+target_q1_net = QNetwork(N_INPUTS1, N_INPUTS2, N_OUTPUT).to(device)
+target_q2_net = QNetwork(N_INPUTS1, N_INPUTS2, N_OUTPUT).to(device)
 alpha = torch.tensor(np.log(ALPHA))
 alpha.requires_grad = True
 
@@ -161,26 +211,26 @@ alpha_optimizer   = torch.optim.AdamW([alpha], lr=LEARNING_RATE_ALPHA)
 
 def optimize_model(batch):
 
-    s, a, r, next_s = batch
+    s1, s2, a, r, next_s1, next_s2 = batch
 
     # Calculate 
     with torch.no_grad():
-        next_a, next_logprob = actor_net(next_s)
+        next_a, next_logprob = actor_net(next_s1, next_s2)
         next_entropy = -alpha.exp() * next_logprob.mean(dim=1)
 
-        next_q1 = target_q1_net(next_s, next_a)
-        next_q2 = target_q2_net(next_s, next_a)
+        next_q1 = target_q1_net(next_s1, next_s2, next_a)
+        next_q2 = target_q2_net(next_s1, next_s2, next_a)
 
         next_min_q = torch.min(torch.cat([next_q1, next_q2], dim=1), 1)[0]
         target = r + DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
-    q1_net.train(target, s, a, q1_optimizer)
-    q2_net.train(target, s, a, q2_optimizer)
+    q1_net.train(target, s1, s2, a, q1_optimizer)
+    q2_net.train(target, s1, s2, a, q2_optimizer)
 
-    action, logprob_batch = actor_net(s)
+    action, logprob_batch = actor_net(s1, s2)
     entropy = -alpha.exp() * logprob_batch.mean(dim=1)
-    q1 = q1_net(s, action)
-    q2 = q2_net(s, action)
+    q1 = q1_net(s1, s2, action)
+    q2 = q2_net(s1, s2, action)
     
     min_q = torch.min(torch.cat([q1, q2],dim=1), 1)[0]
     actor_loss = -entropy - min_q
@@ -202,34 +252,39 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 1000 + 2])
+        max_dish = np.min([10, episode // 500 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
-        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
+        # state_curr, _, _ = sim.env.reset(slider_num=random.randint(7,15))
+        state_curr1 = torch.tensor(state_curr[0], dtype=torch.float32, device=device).unsqueeze(0)
+        state_curr2 = torch.tensor(state_curr[1].T, dtype=torch.float32, device=device)
 
         # Running one episode
         total_reward = 0.0
         start_time = time.time()
         for step in range(1, MAX_STEP + 1):
             # 1. Get action from policy network
-            action, logprob = actor_net(state_curr)
+            action, logprob = actor_net(state_curr1, state_curr2.unsqueeze(0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done = sim.env.step(action[0].tolist())
             total_reward += reward
 
             # 3. Update state
-            state_next = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
+            state_next1 = torch.tensor(state_next[0], dtype=torch.float32, device=device).unsqueeze(0)
+            state_next2 = torch.tensor(state_next[1].T, dtype=torch.float32, device=device)
 
             # 4. Save data
             memory.push(
-                state_curr,
+                state_curr1,
+                state_curr2.T,
                 action,
                 torch.tensor([reward], device=device).unsqueeze(0),
-                state_next,
+                state_next1,
+                state_next2.T,
             )
 
             # 5. Update state
-            state_curr = state_next
+            state_curr1, state_curr2 = state_next1, state_next2
 
             # 6. Learning
             if (len(memory) > BATCH_SIZE):
@@ -284,6 +339,10 @@ else:
     target_q1_net = load_model(target_q1_net, SAVE_DIR, "target_q1", FILE_NAME)
     target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
+
+    # 0. Reset environment
+    state_curr, _, _ = sim.env.reset(slider_num=2)
+    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
     while True: 
         # 0. Reset environment

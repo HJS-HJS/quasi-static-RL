@@ -23,8 +23,8 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-# LOAD            = False
-LOAD            = True
+LOAD            = False
+# LOAD            = True
 FILE_NAME = "start"
 # Learning frame
 FRAME = 4
@@ -32,7 +32,7 @@ FRAME = 4
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.005
-EPISODES        = 2000   # total episode
+EPISODES        = 3000   # total episode
 TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
@@ -220,7 +220,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 500 + 2 + 2])
+        max_dish = np.min([10, episode // 500 + 4])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
