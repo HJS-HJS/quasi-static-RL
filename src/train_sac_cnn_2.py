@@ -297,7 +297,7 @@ if TRAIN:
 
 else:
     sim = DishSimulation(visualize="human",
-                         state="gray",
+                         state="image",
                          random_place=True,
                          action_skip=FRAME
                          )
