@@ -373,21 +373,22 @@ class Simulation():
         self.dist = dist
 
         done = not success
-        if dist < 0.025:
+        if dist < 0.01:
             
             _width = 10.
-            print("\ttry grasp")
+            print("\t\ttry grasp")
             while True:
 
                 # Check gripper width changed
                 if np.abs(_width - self.param.pushers.q[3]) < 0.0001:
-                    print("\t\twidth not changed")
+                    print("\t\t\twidth not changed")
                     done = True
                     break
                 else: _width = self.param.pushers.q[3]
 
-                if max(target_phi) < 0.015:
-                    print("\t\tgrasp")
+                dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
+                if (max(target_phi) < 0.003) and (dist < 0.01):
+                    print("\t\t\tgrasp")
                     done = True
                     break
 
@@ -396,43 +397,16 @@ class Simulation():
                 target_phi = phi[:len(self.param.pushers)]
                 obs_phi=phi[len(self.param.pushers):len(self.param.pushers)*len(self.param.sliders)]
 
-
-        # if dist < 0.2: 
-        #     reward += 0.1
-        #     dist = max(target_phi)
-        #     reward += int((1 - (dist * 10) / 5)*100) / 1000
-        # elif dist < 0.5: reward += 0.05
-        # elif dist < 1.0: reward += -0.1
-        # else: reward += -0.2
-
-        # reward += int(1 - (dist * 10) / 5) / 10
-        # if reward >= 0.07:
-            # reward += int(10 - (max(target_phi) * 10) / 3 * 10) / 1000
-
-        # dist = max(target_phi)
-        # reward += int((1 - (dist * 10) / 5)*100) / 1000
-
-
-        # dist = max(target_phi)
-        # if (dist - self.distance_buffer[0]) > -0.001: reward += -0.1
-        # else:                                         reward += 0.1
-        # self.distance_buffer.pop(0)
-        # self.distance_buffer.append(dist)
-
-        # reward += 5 / np.exp(dist)
-        # failed pusher on the slider
-        # if success: reward += 10
-        # if not success: reward -= 10
         ## done
         for slider in self.param.sliders:
             if np.any(np.abs(slider.q[0:2]) > self.table_limit):
                 done = True
                 # reward -= 0.05
                 reward -= 0.5
-                print("\t\tdish fall out")
+                print("\t\t\tdish fall out")
                 break
         if max(target_phi) < 0.015:
-            print("\t\tgrasp successed!!")
+            print("\t\t\tgrasp successed!!")
             done = True
             # reward = +50
             reward = +75
