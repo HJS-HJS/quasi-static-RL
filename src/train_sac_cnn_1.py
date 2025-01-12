@@ -224,7 +224,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 400 + 1])
+        max_dish = np.min([10, episode // 200 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)

@@ -24,7 +24,7 @@ from utils.utils         import live_plot, show_result, save_models, save_tensor
 TRAIN           = True
 LOAD            = False
 # LOAD            = True
-FILE_NAME = "390"
+FILE_NAME = "0"
 # Learning frame
 FRAME = 4
 # Learning Parameters
@@ -40,7 +40,7 @@ MEMORY_CAPACITY = 50000
 BATCH_SIZE = 128
 EPOCH_SIZE = 4
 # Other
-visulaize_step = 10
+visulaize_step = 20
 MAX_STEP = 256         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
@@ -206,9 +206,8 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 400])
+        max_dish = np.min([10, episode // 300 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
-        # state_curr, _, _ = sim.env.reset(slider_num=0)
         state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode
