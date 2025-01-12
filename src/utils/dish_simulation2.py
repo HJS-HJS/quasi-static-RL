@@ -181,8 +181,8 @@ class Simulation():
         # Generate pygame object surfaces
         for pusher in self.pushers: pusher.polygon = self.create_polygon_surface(pusher.torch_points.cpu().numpy().T, COLOR["RED"],   self.unit) # Generate pygame pushers surface
         for slider in sliders:      slider.polygon = self.create_polygon_surface(slider.torch_points.cpu().numpy().T, COLOR["BLUE"],  self.unit) # Generate pygame sliders surface
-        for obstac in obstacles:    obstac.polygon = self.create_polygon_surface(obstac.torch_points.cpu().numpy().T, COLOR["GREEN"], self.unit) # Generate pygame sliders surface
-        sliders[0].polygon                         = self.create_polygon_surface(sliders[0].torch_points.cpu().numpy().T, COLOR["YELLOW"],  self.unit) # Generate pygame sliders surface
+        for obstac in obstacles:    obstac.polygon = self.create_polygon_surface(obstac.torch_points.cpu().numpy().T, COLOR["YELLOW"], self.unit) # Generate pygame sliders surface
+        sliders[0].polygon                         = self.create_polygon_surface(sliders[0].torch_points.cpu().numpy().T, COLOR["GREEN"],  self.unit) # Generate pygame sliders surface
         self.pusher_center                         = self.create_bead_surface()
 
         # Quasi-static simulation class

@@ -181,8 +181,8 @@ class Simulation():
         # Generate pygame object surfaces
         for pusher in self.pushers: pusher.polygon = self.create_polygon_surface(pusher.torch_points.cpu().numpy().T, COLOR["RED"],   self.unit) # Generate pygame pushers surface
         for slider in sliders:      slider.polygon = self.create_polygon_surface(slider.torch_points.cpu().numpy().T, COLOR["BLUE"],  self.unit) # Generate pygame sliders surface
-        for obstac in obstacles:    obstac.polygon = self.create_polygon_surface(obstac.torch_points.cpu().numpy().T, COLOR["GREEN"], self.unit) # Generate pygame sliders surface
-        sliders[0].polygon                         = self.create_polygon_surface(sliders[0].torch_points.cpu().numpy().T, COLOR["YELLOW"],  self.unit) # Generate pygame sliders surface
+        for obstac in obstacles:    obstac.polygon = self.create_polygon_surface(obstac.torch_points.cpu().numpy().T, COLOR["YELLOW"], self.unit) # Generate pygame sliders surface
+        sliders[0].polygon                         = self.create_polygon_surface(sliders[0].torch_points.cpu().numpy().T, COLOR["GREEN"],  self.unit) # Generate pygame sliders surface
         self.pusher_center                         = self.create_bead_surface()
 
         # Quasi-static simulation class
@@ -230,8 +230,8 @@ class Simulation():
                     ])
                 self.screen.blit(_surface[0], _surface[1])
             # Show updated pygame display
-            _q = (int(self.param.pushers.q[0] / self.unit + self.display_center[0] - 16),
-                  int(-self.param.pushers.q[1] / self.unit + self.display_center[1] - 16))
+            _q = (int(self.param.pushers.q[0] / self.unit + self.display_center[0] - 32),
+                  int(-self.param.pushers.q[1] / self.unit + self.display_center[1] - 32))
             self.screen.blit(self.pusher_center, _q)
             pygame.display.flip()
             return
@@ -511,7 +511,7 @@ class Simulation():
         pygame.draw.line(polygon_surface, COLOR["WHITE"], (width / 2, height / 4), (width / 2, height * 3 / 4), 3)   # Draw vertical line
         return polygon_surface
 
-    def create_bead_surface(self, radius = 12, width = 4):
+    def create_bead_surface(self, radius = 24, width = 8):
         # Generate pygame surface
         lengh = (radius + width) * 2
         polygon_surface = pygame.Surface((lengh,lengh), pygame.SRCALPHA)
