@@ -24,9 +24,10 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 # TRAIN           = False
 TRAIN           = True
 LOAD            = False
+# LOAD            = True
 FILE_NAME = "0"
 # Learning frame
-FRAME = 6
+FRAME = 4
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
@@ -36,8 +37,8 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 7000
-BATCH_SIZE = 64
+MEMORY_CAPACITY = 8000
+BATCH_SIZE = 128
 EPOCH_SIZE = 3
 # Other
 visulaize_step = 10
@@ -219,7 +220,8 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=0)        
+        max_dish = np.min([10, episode // 400 + 1])
+        state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
