@@ -325,7 +325,7 @@ class Simulation():
             surface = pygame.display.get_surface()
             img = pygame.surfarray.array3d(surface)
             gray_img = np.dot(img[..., :], [0.299, 0.587, 0.114])
-            state = np.expand_dims(state, axis=2)
+            state = np.expand_dims(gray_img, axis=2)
         else:
             # Linear
             # Table size    2 (x,y) [m]
