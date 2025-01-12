@@ -49,7 +49,7 @@ SAVE_DIR = current_directory + "/../model/SAC_cnn_1"
 image_reshape = (400,400)
 
 sim = DishSimulation(
-    # visualize=None,
+    visualize=None,
     state="image",
     random_place=True,
     action_skip=FRAME,
