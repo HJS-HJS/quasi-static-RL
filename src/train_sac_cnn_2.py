@@ -310,6 +310,8 @@ else:
 
     # 0. Reset environment
     state_curr, _, _ = sim.env.reset(slider_num=4)
+    state_curr = cv2.resize(state_curr, image_reshape)
+    state_curr = (2 * (state_curr / 255.0) - 1)
     state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
 
     # Running one episode
@@ -320,7 +322,9 @@ else:
 
         # 2. Run simulation 1 step (Execute action and observe reward)
         state_next, reward, done = sim.env.step(action[0].tolist())
-        state_curr = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
+        state_next = cv2.resize(state_next, image_reshape)
+        state_next = (2 * (state_next / 255.0) - 1)
+        state_next = torch.tensor(state_next.T, dtype=torch.float32, device=device).unsqueeze(0)
 
 # Turn the sim off
 sim.env.close()
