@@ -260,9 +260,15 @@ class Simulation():
                 #     [-np.sin(self.param.pushers.rot), -np.cos(self.param.pushers.rot)],
                 #     [np.cos(self.param.pushers.rot),  -np.sin(self.param.pushers.rot)]
                 #     ])
+                # _rot = np.array([
+                #     [ np.sin(np.pi), np.cos(np.pi)],
+                #     [-np.cos(np.pi), np.sin(np.pi)]
+                #     ])
+                _vec = self.param.sliders[0].q[:2] - self.param.pushers.q[:2]
+                _vec = np.atan2(_vec[1], _vec[0]) - np.pi / 2
                 _rot = np.array([
-                    [ np.sin(np.pi), np.cos(np.pi)],
-                    [-np.cos(np.pi), np.sin(np.pi)]
+                    [-np.sin(_vec), -np.cos(_vec)],
+                    [ np.cos(_vec), -np.sin(_vec)]
                     ])
                 # Run quasi-static simulator
                 action[:4] += (np.random.random(4) - 0.5) * 0.00005
