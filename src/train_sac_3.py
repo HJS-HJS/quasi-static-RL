@@ -37,8 +37,8 @@ ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 50000
-BATCH_SIZE = 128
-EPOCH_SIZE = 4
+BATCH_SIZE = 256
+EPOCH_SIZE = 3
 # Other
 visulaize_step = 20
 MAX_STEP = 100         # maximun available step per episode
@@ -206,8 +206,8 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 500 + 2])
-        state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
+        max_dish = np.min([10, episode // 500 + 3])
+        state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
         state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Running one episode

@@ -156,7 +156,7 @@ class Simulation():
             sliders = ObjectSlider()
             _margin  = self.min_r
             if slider_num is None: _slider_num = random.randint(1, self.slider_num) # Get sliders number
-            else: _slider_num = np.clip(slider_num, 0, 15)
+            else: _slider_num = np.clip(slider_num, 1, 15)
             points, radius = self.generate_spawn_points(_slider_num, self.min_r, self.max_r, self.table_limit, _margin)
             for point, _r in zip(points, radius):
                 a = np.clip(random.uniform(0.8, 1.0) * _r, a_min=self.min_r, a_max=_r)
