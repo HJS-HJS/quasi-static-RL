@@ -38,10 +38,10 @@ LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 50000
 BATCH_SIZE = 128
-EPOCH_SIZE = 4
+EPOCH_SIZE = 3
 # Other
 visulaize_step = 20
-MAX_STEP = 100         # maximun available step per episode
+MAX_STEP = 150         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_linear_2"
@@ -252,7 +252,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([15, episode // 500 + 6])
+        max_dish = np.min([15, episode // 1000 + 6])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
         # state_curr, _, _ = sim.env.reset(slider_num=random.randint(7,15))
         state_curr1 = torch.tensor(state_curr[0], dtype=torch.float32, device=device).unsqueeze(0)
@@ -340,23 +340,21 @@ else:
     target_q2_net = load_model(target_q2_net, SAVE_DIR, "target_q2", FILE_NAME)
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
-    # 0. Reset environment
-    state_curr, _, _ = sim.env.reset(slider_num=2)
-    state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
-
     while True: 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=5)
-        state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
+        state_curr, _, _ = sim.env.reset(slider_num=6)
+        state_curr1 = torch.tensor(state_curr[0], dtype=torch.float32, device=device).unsqueeze(0)
+        state_curr2 = torch.tensor(state_curr[1].T, dtype=torch.float32, device=device)
 
         # Running one episode
         for step in range(MAX_STEP):
             # 1. Get action from policy network
-            action, logprob = actor_net(state_curr)
+            action, logprob = actor_net(state_curr1, state_curr2.unsqueeze(0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done = sim.env.step(action[0].tolist())
-            state_curr = torch.tensor(state_next, dtype=torch.float32, device=device).unsqueeze(0)
+            state_curr1 = torch.tensor(state_next[0], dtype=torch.float32, device=device).unsqueeze(0)
+            state_curr2 = torch.tensor(state_next[1].T, dtype=torch.float32, device=device)
             if done: break
 
 # Turn the sim off

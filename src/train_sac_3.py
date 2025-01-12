@@ -38,10 +38,10 @@ LEARNING_RATE_ALPHA= 0.01
 # Memory
 MEMORY_CAPACITY = 50000
 BATCH_SIZE = 256
-EPOCH_SIZE = 3
+EPOCH_SIZE = 1
 # Other
 visulaize_step = 20
-MAX_STEP = 100         # maximun available step per episode
+MAX_STEP = 150         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_linear_3"
@@ -206,7 +206,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 500 + 3])
+        max_dish = np.min([10, episode // 750 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
         state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
