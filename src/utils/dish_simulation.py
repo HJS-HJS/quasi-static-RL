@@ -265,7 +265,7 @@ class Simulation():
                 #     [-np.cos(np.pi), np.sin(np.pi)]
                 #     ])
                 _vec = self.param.sliders[0].q[:2] - self.param.pushers.q[:2]
-                _vec = np.atan2(_vec[1], _vec[0]) - np.pi / 2
+                _vec = np.arctan2(_vec[1], _vec[0]) - np.pi / 2
                 _rot = np.array([
                     [-np.sin(_vec), -np.cos(_vec)],
                     [ np.cos(_vec), -np.sin(_vec)]
