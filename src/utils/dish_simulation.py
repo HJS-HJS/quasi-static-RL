@@ -427,7 +427,8 @@ class Simulation():
         for slider in self.param.sliders:
             if np.any(np.abs(slider.q[0:2]) > self.table_limit):
                 done = True
-                reward -= 0.05
+                # reward -= 0.05
+                reward -= 0.5
                 print("\t\tdish fall out")
                 break
         if max(target_phi) < 0.015:

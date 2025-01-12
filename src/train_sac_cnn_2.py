@@ -25,7 +25,7 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 TRAIN           = True
 # LOAD            = False
 LOAD            = True
-FILE_NAME = "518"
+FILE_NAME = "start"
 # Learning frame
 FRAME = 4
 # Learning Parameters
@@ -37,7 +37,7 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 8000
+MEMORY_CAPACITY = 15000
 BATCH_SIZE = 128
 EPOCH_SIZE = 3
 # Other
@@ -220,7 +220,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 200 + 2 + 2])
+        max_dish = np.min([10, episode // 500 + 2 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)

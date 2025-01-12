@@ -22,16 +22,16 @@ from utils.utils         import live_plot, show_result, save_models, save_tensor
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-LOAD            = False
-# LOAD            = True
-FILE_NAME = "0"
+# LOAD            = False
+LOAD            = True
+FILE_NAME = "start"
 # Learning frame
 FRAME = 4
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.005
-EPISODES        = 2000   # total episode
+EPISODES        = 4000   # total episode
 TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
@@ -41,7 +41,7 @@ BATCH_SIZE = 128
 EPOCH_SIZE = 4
 # Other
 visulaize_step = 20
-MAX_STEP = 256         # maximun available step per episode
+MAX_STEP = 100         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_linear_2"
@@ -202,7 +202,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 500 + 2])
+        max_dish = np.min([10, episode // 1000 + 2])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(0, max_dish))
         state_curr = torch.tensor(state_curr, dtype=torch.float32, device=device).unsqueeze(0)
 
