@@ -165,8 +165,10 @@ class Simulation():
                 sliders.append(Ellipse(np.hstack((point,[r])), a, b))
             # Generate dummy object
             obstacles = ObjectObstacle()
-        
+
         self.state_max_num = len(self.pushers.q) + _slider_num * 3
+        self._state_idx = random.sample(range(1, 15), len(sliders) - 1)
+        self._state_idx.insert(0, 0)
 
         # Pusher initial pose at corner
         _q = np.sign(sliders[0].q[0:2]) * 0.85 * np.array([WIDTH, HEIGHT]) / 2 * self.unit
@@ -334,13 +336,15 @@ class Simulation():
             _table   = copy.deepcopy(self.table_limit)
             _pusher  = copy.deepcopy(self.param.qp)
             _sliders = np.zeros(15*5)
-            for idx, slider in enumerate(self.param.sliders):
-                _sliders[5*idx:5*idx+5] = np.hstack((slider.q, slider.a, slider.b))
+
+            for idx1, idx2 in zip(self._state_idx, range(len(self.param.sliders))):
+                _slider = self.param.sliders[idx2]
+                _sliders[5*idx1:5*idx1+5] = np.hstack((_slider.q, _slider.a, _slider.b))
 
             # Normalize
             _pusher[3]     = (_pusher[3] - self.pusher_d_l_limit) / (self.pusher_d_u_limit - self.pusher_d_l_limit) - 0.5
-            _pusher[2]     = (_pusher[2]     % (2 * np.pi)) / np.pi - 1
-            _sliders[2::5] = (_sliders[2::5] % (2 * np.pi)) / np.pi - 1
+            _pusher[2]     = ((_pusher[2]     + np.pi) % (2 * np.pi)) / np.pi - 1
+            _sliders[2::5] = ((_sliders[2::5] + np.pi) % (2 * np.pi)) / np.pi - 1
 
             state = np.hstack((_table, _pusher, _sliders))
 
