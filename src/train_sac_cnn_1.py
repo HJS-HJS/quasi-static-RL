@@ -37,9 +37,9 @@ TARGET_ENTROPY  = -4.0
 ALPHA           = 0.01
 LEARNING_RATE_ALPHA= 0.01
 # Memory
-MEMORY_CAPACITY = 7500
-BATCH_SIZE = 256
-EPOCH_SIZE = 2
+MEMORY_CAPACITY = 10000
+BATCH_SIZE = 128
+EPOCH_SIZE = 1
 # Other
 visulaize_step = 10
 MAX_STEP = 150         # maximun available step per episode
@@ -220,7 +220,7 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([10, episode // 500 + 2])
+        max_dish = np.min([10, episode // 500 + 3])
         state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
