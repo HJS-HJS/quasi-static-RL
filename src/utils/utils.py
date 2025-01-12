@@ -54,7 +54,7 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     if os.path.exists(_save_dir):
         state_dict = torch.load(save_path, weights_only=True)
         network.load_state_dict(state_dict)
-        print(f"\tModels loaded from {save_path}")
+        print("\tModel loaded successfully")
     else:
         print(f"\tNo saved model found {save_path}")
     return network
@@ -68,7 +68,7 @@ def load_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], e
             networks[idx].load_state_dict(state_dict)
         else:
             print(f"\tNo saved model found {save_path}")
-    print(f"\tModels loaded from {_save_dir}")
+    print("\tModels loaded successfully")
     return networks
 
 def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
@@ -76,7 +76,7 @@ def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     if os.path.exists(save_path):
         tensor = torch.load(save_path, weights_only=False)
-        print(f"\tModels loaded from {save_path}")
+        print("\tTensor loaded successfull")
     else:
         print(f"\tNo saved model found {save_path}")
     return tensor
