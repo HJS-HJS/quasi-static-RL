@@ -75,7 +75,7 @@ def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     _save_dir = save_dir + "/" + str(episode) + "/"
     save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     if os.path.exists(save_path):
-        tensor = torch.load(save_path)
+        tensor = torch.load(save_path, weights_only=False)
         print(f"\tModels loaded from {save_path}")
     else:
         print(f"\tNo saved model found {save_path}")
