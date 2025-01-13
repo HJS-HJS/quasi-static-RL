@@ -20,13 +20,13 @@ from utils.sac_dataset2   import SACDataset
 from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
-TRAIN           = False
-# TRAIN           = True
+# TRAIN           = False
+TRAIN           = True
 # LOAD            = False
 LOAD            = True
-FILE_NAME = "643"
+FILE_NAME = "2893"
 # Learning frame
-FRAME = 4
+FRAME = 8
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma

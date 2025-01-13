@@ -14,7 +14,7 @@ import time
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
-from utils.dish_simulation1 import DishSimulation
+from utils.dish_simulation2 import DishSimulation
 
 from utils.sac_dataset2   import SACDataset
 from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
@@ -26,7 +26,7 @@ LOAD            = False
 # LOAD            = True
 FILE_NAME = "start"
 # Learning frame
-FRAME = 4
+FRAME = 8
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
@@ -41,7 +41,7 @@ BATCH_SIZE = 128
 EPOCH_SIZE = 3
 # Other
 visulaize_step = 20
-MAX_STEP = 150         # maximun available step per episode
+MAX_STEP = 200         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_linear_1"
@@ -77,10 +77,27 @@ class ActorNetwork(nn.Module):
             nn.Linear(256, 256),
             nn.ReLU(),
         )
-        self.obs1 = nn.Sequential(
+        self.obs1_layer = nn.Sequential(
             nn.Conv1d(n_obs,64, kernel_size=1),
             nn.BatchNorm1d(64),
             nn.ReLU(),
+        )
+        self.t_net1 = nn.Sequential(
+            nn.Conv1d(64,64, kernel_size=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64,512, kernel_size=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+        )
+
+        self.t_net2 = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(512, 64*64),
+            nn.ReLU(),
+        )
+            
+        self.obs2_layer = nn.Sequential(
             nn.Conv1d(64,128, kernel_size=1),
             nn.BatchNorm1d(128),
             nn.ReLU(),
@@ -88,7 +105,8 @@ class ActorNetwork(nn.Module):
             nn.BatchNorm1d(1024),
             nn.ReLU(),
         )
-        self.obs2 = nn.Sequential(
+
+        self.obs3_layer = nn.Sequential(
             nn.Flatten(start_dim=1),
             nn.Linear(1024, 512),
             nn.ReLU(),
@@ -106,9 +124,15 @@ class ActorNetwork(nn.Module):
 
     def forward(self, state, obs):
         x = self.layer(state)
-        obs = self.obs1(obs)
+        obs = self.obs1_layer(obs)
+        _t = self.t_net1(obs)
+        _t = torch.max(_t, 2, keepdim=True)[0]
+        _t = self.t_net2(_t)
+        _t = _t.view(-1, 64, 64)
+        obs = torch.bmm(_t, obs)
+        obs = self.obs2_layer(obs)
         obs = torch.max(obs, 2, keepdim=True)[0]
-        obs = self.obs2(obs)
+        obs = self.obs3_layer(obs)
 
         x= torch.cat([x, obs], dim=1)
 
@@ -137,6 +161,23 @@ class QNetwork(nn.Module):
             nn.Conv1d(n_obs,64, kernel_size=1),
             nn.BatchNorm1d(64),
             nn.ReLU(),
+        )
+        self.t_net1 = nn.Sequential(
+            nn.Conv1d(64,64, kernel_size=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64,512, kernel_size=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+        )
+
+        self.t_net2 = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(512, 64*64),
+            nn.ReLU(),
+        )
+            
+        self.obs2_layer = nn.Sequential(
             nn.Conv1d(64,128, kernel_size=1),
             nn.BatchNorm1d(128),
             nn.ReLU(),
@@ -144,7 +185,8 @@ class QNetwork(nn.Module):
             nn.BatchNorm1d(1024),
             nn.ReLU(),
         )
-        self.obs2_layer = nn.Sequential(
+
+        self.obs3_layer = nn.Sequential(
             nn.Flatten(start_dim=1),
             nn.Linear(1024, 512),
             nn.ReLU(),
@@ -166,8 +208,14 @@ class QNetwork(nn.Module):
     def forward(self, state, obs, action):
         _state = self.state_layer(state)
         _obs = self.obs1_layer(obs)
-        _obs = torch.max(_obs, 2, keepdim=True)[0]
+        _t = self.t_net1(_obs)
+        _t = torch.max(_t, 2, keepdim=True)[0]
+        _t = self.t_net2(_t)
+        _t = _t.view(-1, 64, 64)
+        _obs = torch.bmm(_t, _obs)
         _obs = self.obs2_layer(_obs)
+        _obs = torch.max(_obs, 2, keepdim=True)[0]
+        _obs = self.obs3_layer(_obs)
         _action = self.action_layer(action)
         return self.layer(torch.cat([_state, _action, _obs], dim=1))
     

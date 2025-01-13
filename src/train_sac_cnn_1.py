@@ -25,9 +25,9 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 TRAIN           = True
 # LOAD            = False
 LOAD            = True
-FILE_NAME = "905"
+FILE_NAME = "start"
 # Learning frame
-FRAME = 4
+FRAME = 8
 # Learning Parameters
 LEARNING_RATE   = 0.0005 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
