@@ -20,11 +20,11 @@ from utils.sac_dataset2   import SACDataset
 from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
-# TRAIN           = False
-TRAIN           = True
+TRAIN           = False
+# TRAIN           = True
 # LOAD            = False
 LOAD            = True
-FILE_NAME = "start"
+FILE_NAME = "643"
 # Learning frame
 FRAME = 4
 # Learning Parameters
@@ -252,9 +252,9 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        max_dish = np.min([15, episode // 1000 + 6])
-        state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
-        # state_curr, _, _ = sim.env.reset(slider_num=random.randint(7,15))
+        # max_dish = np.min([15, episode // 1000 + 6])
+        # state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
+        state_curr, _, _ = sim.env.reset(slider_num=6)
         state_curr1 = torch.tensor(state_curr[0], dtype=torch.float32, device=device).unsqueeze(0)
         state_curr2 = torch.tensor(state_curr[1].T, dtype=torch.float32, device=device)
 
@@ -356,6 +356,7 @@ else:
             state_curr1 = torch.tensor(state_next[0], dtype=torch.float32, device=device).unsqueeze(0)
             state_curr2 = torch.tensor(state_next[1].T, dtype=torch.float32, device=device)
             if done: break
+            print(step)
 
 # Turn the sim off
 sim.env.close()
