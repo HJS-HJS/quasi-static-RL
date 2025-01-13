@@ -311,7 +311,7 @@ else:
 
     while True: 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=2)
+        state_curr, _, _ = sim.env.reset(slider_num=4)
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)

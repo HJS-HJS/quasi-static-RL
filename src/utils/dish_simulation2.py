@@ -24,6 +24,7 @@ class Simulation():
         self.random = random_place
         self.action_skip = action_skip
         self.gripper_on = False
+        self.is_failed = False
 
         self.distance_buffer = [0] * 1
 
@@ -111,6 +112,7 @@ class Simulation():
         del self.param
         
         self.dist = 0.
+        self.is_failed = False
         
         ## Set pygame display settings
         WIDTH, HEIGHT = self.config["display"]["WIDTH"], self.config["display"]["HEIGHT"] # Get pygame display size parameter from config.yaml
@@ -315,6 +317,12 @@ class Simulation():
         """
         state, reward, done
         """
+        done = False
+        if success:
+            self.is_failed = False
+        else:
+            if self.is_failed: done = True
+            else: self.is_failed = True
         ## state
         if self.state == 'image':
             # image 
@@ -376,7 +384,6 @@ class Simulation():
 
         self.dist = dist
 
-        done = not success
         if dist < 0.01:
             
             _width = 10.
@@ -412,10 +419,11 @@ class Simulation():
         if max(target_phi) < 0.015:
             print("\t\t\tgrasp successed!!")
             done = True
-            # reward = +50
+            # reward = +10
             reward = +75
             obs_phi = obs_phi[np.where(obs_phi > 0)]
             if len(obs_phi) > 0:
+                # reward += np.log(min(obs_phi)) * 5 / 10
                 reward += np.log(min(obs_phi)) * 5
         return state, reward, done
     
