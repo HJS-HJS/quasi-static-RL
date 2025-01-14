@@ -1,6 +1,6 @@
 simulator:
-  fps      : 50  # 100fps
-  sim_step : 300  # Maximun LCP solver step
+  fps      : 50  # 100 fps
+  sim_step : 100  # Maximun LCP solver step
   dist_threshold: 5e-2 # Distance to decide whether to calculate parameters
 
 display:
@@ -23,9 +23,9 @@ pusher:
   # unit_v_speed    : 0.8  # [m/s]
   # unit_r_speed    : 0.6  # [rad/s]
   # unit_w_speed    : 0.05 # [m/s]
-  unit_v_speed    : 0.4  # [m/s]
-  unit_r_speed    : 0.3  # [rad/s]
-  unit_w_speed    : 0.05   # [m/s]
+  unit_v_speed    : 0.1  # [m/s]
+  unit_r_speed    : 0.15  # [rad/s]
+  unit_w_speed    : 0.03   # [m/s]
 
 sliders:
   [
