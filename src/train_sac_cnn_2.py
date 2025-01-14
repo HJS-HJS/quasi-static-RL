@@ -25,7 +25,7 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 TRAIN           = True
 LOAD            = False
 # LOAD            = True
-FILE_NAME = "3000"
+FILE_NAME = "start"
 # Learning frame
 FRAME = 8
 # Learning Parameters
