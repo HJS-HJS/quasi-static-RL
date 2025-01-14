@@ -304,9 +304,9 @@ class Simulation():
                 success = True
                 self.gripper_on = False
         
-        if _fail_count != 0: print("\trecover pusher input")
+        if _fail_count != 0: print("\t\trecover pusher input")
 
-        for _ in range(_fail_count * 5):
+        for _ in range(_fail_count * 10):
             # Update parameters for quasi-state simulation
             self.param.update_param()
             # Get parameters for simulations
@@ -326,7 +326,7 @@ class Simulation():
             _action = action[:4] + random.choice([1., 0.5, -0.5, -1.]) * 1e-6
             _action[:2] = _rot@_action[:2]
             qs, qp, success = self.simulator.run(
-                u_input = _action * self.frame / 5,
+                u_input = _action * self.frame / 10,
                 qs  = _qs,
                 qp  = _qp,
                 phi = _phi,
@@ -348,7 +348,7 @@ class Simulation():
                 self.param.pushers.apply_v((qp - _qp) / self.frame) # Update pusher velocity
                 self.param.pushers.apply_q(qp)                      # Update pusher position
             else: 
-                print("\t\tfailed")
+                print("\t\t\tfailed")
         
         return success, _phi
 
