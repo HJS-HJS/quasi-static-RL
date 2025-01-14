@@ -15,7 +15,7 @@ import time
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
-from utils.dish_simulation import DishSimulation
+from utils.dish_simulation1 import DishSimulation
 
 from utils.sac_dataset import SACDataset
 from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
@@ -23,9 +23,9 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-# LOAD            = False
-LOAD            = True
-FILE_NAME = "start"
+LOAD            = False
+# LOAD            = True
+FILE_NAME = "40"
 # Learning frame
 FRAME = 8
 # Learning Parameters
@@ -42,7 +42,7 @@ BATCH_SIZE = 128
 EPOCH_SIZE = 1
 # Other
 visulaize_step = 10
-MAX_STEP = 150         # maximun available step per episode
+MAX_STEP = 200         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn_1"
@@ -312,7 +312,7 @@ else:
 
     while True: 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=4)
+        state_curr, _, _ = sim.env.reset(slider_num=6)
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)

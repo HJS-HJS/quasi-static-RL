@@ -42,7 +42,7 @@ BATCH_SIZE = 128
 EPOCH_SIZE = 1
 # Other
 visulaize_step = 10
-MAX_STEP = 150         # maximun available step per episode
+MAX_STEP = 200         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn_2"
@@ -312,7 +312,7 @@ else:
 
     while True: 
         # 0. Reset environment
-        state_curr, _, _ = sim.env.reset(slider_num=4)
+        state_curr, _, _ = sim.env.reset(slider_num=6)
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
         state_curr = torch.tensor(state_curr.T, dtype=torch.float32, device=device).unsqueeze(0)
