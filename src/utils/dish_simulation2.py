@@ -419,12 +419,12 @@ class Simulation():
         if max(target_phi) < 0.015:
             print("\t\t\tgrasp successed!!")
             done = True
-            # reward = +10
-            reward = +75
+            reward = +10
+            # reward = +75
             obs_phi = obs_phi[np.where(obs_phi > 0)]
             if len(obs_phi) > 0:
-                # reward += np.log(min(obs_phi)) * 5 / 10
-                reward += np.log(min(obs_phi)) * 5
+                reward += np.log(min(obs_phi)) * 5 / 10
+                # reward += np.log(min(obs_phi)) * 5
         return state, reward, done
     
     def generate_spawn_points(self, num_points, min_r, max_r, limit, margin, center_bias=0.8):
