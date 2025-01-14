@@ -308,7 +308,7 @@ if TRAIN:
         # max_dish = np.min([15, episode // 1000 + 6])
         # max_dish = np.min([15, episode // 1000 + 6])
         # state_curr, _, _ = sim.env.reset(slider_num=random.randint(1, max_dish))
-        state_curr, _, _ = sim.env.reset(slider_num=6)
+        state_curr, _, _ = sim.env.reset(slider_num=8)
         state_curr1 = torch.tensor(state_curr[0], dtype=torch.float32, device=device).unsqueeze(0)
         state_curr2 = torch.tensor(state_curr[1].T, dtype=torch.float32, device=device)
 
