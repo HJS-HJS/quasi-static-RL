@@ -415,11 +415,12 @@ class Simulation():
         # if (dist - self.dist) < 1e-3:
         #     reward += 0.1
         # else: reward += -0.2
-        if (dist - self.dist) < -1e-2:
-        # if (dist - self.dist) < -2e-2:
-            # reward += 0.1
-            pass
-        else: reward += -0.1
+        # if (dist - self.dist) < -1e-2:
+        # # if (dist - self.dist) < -2e-2:
+        #     # reward += 0.1
+        #     pass
+        # else: reward += -0.1
+        reward += -0.1
 
         self.dist = dist
 
