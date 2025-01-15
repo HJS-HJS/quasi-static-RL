@@ -244,6 +244,7 @@ class Simulation():
         if(len(action) == 4):
             action = np.hstack((action, 1))
         _fail_count = 0
+        _fail_count2 = 0
 
         # Limit pusher speed
         action = np.clip(action, self.action_limit[:, 0], self.action_limit[:, 1])
@@ -305,7 +306,6 @@ class Simulation():
                 self.gripper_on = False
         
         if _fail_count != 0: print("\t\trecover pusher input ", _fail_count)
-        _fail_count2 = 0
         for _ in range(_fail_count * 12):
             # Update parameters for quasi-state simulation
             self.param.update_param()
@@ -349,9 +349,10 @@ class Simulation():
                 self.param.pushers.apply_q(qp)                      # Update pusher position
             else: 
                 _fail_count2 += 1
-            if _fail_count2 != 0: print("\t\t\tfailed ", _fail_count2) 
         
-        if _fail_count2 > 6:
+        if _fail_count2 != 0: print("\t\t\tfailed ", _fail_count2) 
+        
+        if _fail_count2 > 12:
             success = False
         else: success = True
 
