@@ -22,9 +22,9 @@ from utils.utils         import live_plot, show_result, save_models, save_tensor
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-LOAD            = False
-# LOAD            = True
-FILE_NAME = "start"
+# LOAD            = False
+LOAD            = True
+FILE_NAME = "start_1"
 # Learning frame
 FRAME = 8
 # Learning Parameters
@@ -410,6 +410,7 @@ else:
             state_curr1 = torch.tensor(state_next[0], dtype=torch.float32, device=device).unsqueeze(0)
             state_curr2 = torch.tensor(state_next[1].T, dtype=torch.float32, device=device)
             if done: break
+        print("Episode finished with step #{}".format(step))
 
 # Turn the sim off
 sim.env.close()
