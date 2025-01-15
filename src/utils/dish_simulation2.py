@@ -111,7 +111,7 @@ class Simulation():
     def reset(self, slider_num:int=None):
         del self.param
         
-        self.dist = 0.
+        self.prev_dist = 0.
         self.is_failed = False
         
         ## Set pygame display settings
@@ -304,9 +304,9 @@ class Simulation():
                 success = True
                 self.gripper_on = False
         
-        if _fail_count != 0: print("\t\trecover pusher input")
-
-        for _ in range(_fail_count * 10):
+        if _fail_count != 0: print("\t\trecover pusher input ", _fail_count)
+        _fail_count2 = 0
+        for _ in range(_fail_count * 12):
             # Update parameters for quasi-state simulation
             self.param.update_param()
             # Get parameters for simulations
@@ -326,7 +326,7 @@ class Simulation():
             _action = action[:4] + random.choice([1., 0.5, -0.5, -1.]) * 1e-6
             _action[:2] = _rot@_action[:2]
             qs, qp, success = self.simulator.run(
-                u_input = _action * self.frame / 10,
+                u_input = _action * self.frame / 12,
                 qs  = _qs,
                 qp  = _qp,
                 phi = _phi,
@@ -348,20 +348,21 @@ class Simulation():
                 self.param.pushers.apply_v((qp - _qp) / self.frame) # Update pusher velocity
                 self.param.pushers.apply_q(qp)                      # Update pusher position
             else: 
-                print("\t\t\tfailed")
+                _fail_count2 += 1
+            if _fail_count2 != 0: print("\t\t\tfailed ", _fail_count2) 
         
+        if _fail_count2 > 6:
+            success = False
+        else: success = True
+
         return success, _phi
 
     def generate_result(self, success:bool = True, target_phi = [10., 10., 10.], obs_phi = [10.,]):
         """
         state, reward, done
         """
-        done = False
-        if success:
-            self.is_failed = False
-        else:
-            if self.is_failed: done = True
-            else: self.is_failed = True
+        done = not success
+
         ## state
         if self.state == 'image':
             # image 
@@ -406,22 +407,11 @@ class Simulation():
         
         # reward += int((1 - (dist * 2))*100) / 1000
         
-        # reward += int((1 - (dist * 2))*100) / 1000 / 2
-        # if dist > 0.3:
-        #     reward += -(dist - 0.3)
-
-        # reward += (-dist**2 + 0.4**2) * 0.1 / 0.4**2 - 0.1
-
-        # if (dist - self.dist) < 1e-3:
-        #     reward += 0.1
-        # else: reward += -0.2
-        if (dist - self.dist) < -1e-2:
-        # if (dist - self.dist) < -2e-2:
-            # reward += 0.1
+        if (dist - self.prev_dist) < -1e-2:
             pass
         else: reward += -0.1
 
-        self.dist = dist
+        self.prev_dist = dist
 
         if dist < 0.01:
             
