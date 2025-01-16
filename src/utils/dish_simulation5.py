@@ -382,11 +382,11 @@ class Simulation():
 
         ## reward
         reward = 0.0
-        if (target_dist - self._prev_target_dist) < -1e-2: pass
-        else: reward += -0.01
+        if (target_dist - self._prev_target_dist) < -1e-2: reward += +0.01
+        else: pass #reward += -0.01
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
-            reward += -0.1 * np.sum(slider_dist[_delta_slider_dist])
+            reward += -0.02 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
