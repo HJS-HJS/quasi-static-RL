@@ -15,7 +15,7 @@ import time
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
-from utils.dish_simulation1 import DishSimulation
+from utils.dish_simulation5 import DishSimulation
 
 from utils.sac_dataset import SACDataset
 from utils.utils       import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
@@ -220,12 +220,13 @@ if TRAIN:
     for episode in range(1, EPISODES + 1):
 
         # 0. Reset environment
-        if (episode // 4) % 3 == 0:
-            if episode % 2 == 0: state_curr, _, _ = sim.reset(mode=None, slider_num=3)
-            else:                state_curr, _, _ = sim.reset(mode=None, slider_num=8)
-        elif (episode // 4) % 3 == 1:
+        if (episode // 2) % 4 == 0:
+            state_curr, _, _ = sim.reset(mode=None, slider_num=4)
+        elif (episode // 2) % 4 == 1:
+            state_curr, _, _ = sim.reset(mode=None, slider_num=8)
+        elif (episode // 2) % 4 == 2:
             state_curr, _, _ = sim.reset(mode="continous", slider_num=8)
-        elif (episode // 4) % 3 == 2:
+        elif (episode // 2) % 4 == 3:
             state_curr, _, _ = sim.reset(mode="pusher", slider_num=8)
         state_curr = cv2.resize(state_curr, image_reshape)
         state_curr = (2 * (state_curr / 255.0) - 1)
