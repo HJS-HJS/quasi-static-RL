@@ -5,6 +5,7 @@ import random
 import yaml
 import numpy as np
 import pygame
+from typing import List
 
 from third_party.quasi_static_push.scripts.utils.diagram         import Circle, Ellipse, SuperEllipse, RPolygon, SmoothRPolygon
 from third_party.quasi_static_push.scripts.utils.object_obstacle import ObjectObstacle
@@ -24,9 +25,6 @@ class Simulation():
         self.random = random_place
         self.action_skip = action_skip
         self.gripper_on = False
-        self.is_failed = False
-
-        self.distance_buffer = [0] * 1
 
         # Set pygame display
         if visualize == "human":
@@ -47,8 +45,8 @@ class Simulation():
             self.config = yaml.load(f,Loader=yaml.FullLoader)
 
         # Set patameters
-        WIDTH, HEIGHT = self.config["display"]["WIDTH"], self.config["display"]["HEIGHT"] # Get pygame display size parameter from config.yaml
-        self.display_center = np.array([WIDTH/2, HEIGHT/2])                          # Get center pixel of pygame display
+        self.display_size = np.array([self.config["display"]["WIDTH"], self.config["display"]["HEIGHT"] ]) # Get pygame display size parameter from config.yaml
+        self.display_center = self.display_size/2                                                          # Get center pixel of pygame display
 
         ## Set parameters
         # Set pixel unit
@@ -65,22 +63,20 @@ class Simulation():
         pusher_position = self.config["pusher"]["pusher_position"]
         pusher_rotation = np.deg2rad(self.config["pusher"]["pusher_rotation"])
 
-        # Set pusher speed
-        u_input = np.zeros(3)                            # Initialize pusher's speed set as zeros 
-        self.width   = pusher_distance                        # Initialize pusher's speed set as zeros 
+        # Set pusher unit speed
         unit_v_speed = self.config["pusher"]["unit_v_speed"]  # [m/s]
         unit_r_speed = self.config["pusher"]["unit_r_speed"]  # [rad/s]
         unit_w_speed = self.config["pusher"]["unit_w_speed"]  # [m/s]
         self.unit_speed = [unit_v_speed, unit_v_speed, unit_r_speed, unit_w_speed]
 
         # Set slider 
-        self.slider_num = self.config["auto"]["maximun_number"] # Get sliders number
+        self.slider_max_num = self.config["auto"]["maximun_number"] # Get sliders number
         self.min_r = self.config["auto"]["minimum_radius"]
         self.max_r = self.config["auto"]["maximum_radius"]
 
         # Set simulate param
-        fps = self.config["simulator"]["fps"]      # Get simulator fps from config.yaml
-        self.frame = 1 / fps                       # 1 frame = 1/fps
+        _fps = self.config["simulator"]["fps"]      # Get simulator fps from config.yaml
+        self.frame = 1 / _fps                       # 1 frame = 1/fps
         sim_step = self.config["simulator"]["sim_step"] # Maximun LCP solver step
         self.dist_threshold = float(self.config["simulator"]["dist_threshold"]) # Distance to decide whether to calculate parameters
 
@@ -97,106 +93,95 @@ class Simulation():
             [-1., 1.],
             [-1., 1.],
             [-1., 1.],
-            [0, 2],
         ])
         self.param = None
-        state, _, _ = self.reset()
 
-        # self.observation_space = Box(low=-np.inf, high=np.inf, shape=state.shape, dtype=np.float32)
-        # self.action_space = Box(low=-1.0, high=1.0, shape=(5,), dtype=np.float32)
-        self.observation_space = state
-        self.action_space = np.zeros(5)
+        self.action_space = np.zeros_like(self.unit_speed)
+        if state == "image" :   self.observation_space = np.zeros((self.display_size[0],self.display_size[1],3))
+        elif state == "gray":   self.observation_space = np.zeros((self.display_size[0],self.display_size[1],1))
+        elif state == "linear": self.observation_space = np.zeros(2 + 4 + 5), np.zeros((2, 5))
+    
 
-
-    def reset(self, slider_num:int=None):
+    def reset(self, 
+              table_size:List[float] = None,
+              pusher_pose:List[float] = None,
+              slider_pose:List[List[float]] = None,
+              slider_num:int=None,
+              ):
         del self.param
         
-        self.prev_dist = 0.
-        self.is_failed = False
-        
-        ## Set pygame display settings
-        WIDTH, HEIGHT = self.config["display"]["WIDTH"], self.config["display"]["HEIGHT"] # Get pygame display size parameter from config.yaml
-        # Initialize pygame
-        pygame.init()                                       # Initialize pygame
-        pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
-        clock = pygame.time.Clock()                         # Generate pygame clock for apply proper fps
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))   # Set pygame display size
-        if not self.random:
-            self.table_limit = np.array([WIDTH, HEIGHT])
+        # Table setting
+        if table_size is None:
+            _table_limit_width  = random.randint(self.display_size[0] // 3, int(self.display_size[0] * 0.8))
+            _table_limit_height = random.randint(self.display_size[1] // 3, int(self.display_size[1] * 0.8))
+            _table_limit = np.array([_table_limit_width, _table_limit_height])
+            table_size = _table_limit * self.unit
         else:
-            rand_x = random.randint(WIDTH // 3, int(WIDTH * 0.8))
-            rand_y = random.randint(HEIGHT // 3, int(HEIGHT * 0.8))
-            self.table_limit = np.array([rand_x, rand_y])
-        self.backgound = self.create_background_surface(WIDTH, HEIGHT, self.table_limit, self.unit, grid=False) # Generate pygame background surface
-        self.table_limit = self.table_limit*self.unit/2
+            _table_limit = (np.array(table_size) / self.unit).astype(int)
+        self.table_limit = _table_limit * self.unit / 2
 
-        ## Generate objects
-        # Initialize sliders
-        if not self.random:
-            # Set sliders
-            slider_diagram = self.config["sliders"]             # Get sliders property (type, pose, parameters)
-            # Set obstacles
-            obstacle_diagram = self.config["obstacles"]         # Get sliders property (type, pose, parameters)
-            # Generate sliders
-            sliders = ObjectSlider()
-            for slider in slider_diagram:
-                if   slider["type"] == "circle":       sliders.append(Circle(slider['q'], slider['r']))
-                elif slider["type"] == "ellipse":      sliders.append(Ellipse(slider['q'], slider['a'], slider['b']))
-                elif slider["type"] == "superellipse": sliders.append(SuperEllipse(slider['q'], slider['a'], slider['b'], slider['n']))
-                elif slider["type"] == "rpolygon":     sliders.append(RPolygon(slider['q'], slider['a'], slider['k']))
-                elif slider["type"] == "srpolygon":    sliders.append(SmoothRPolygon(slider['q'], slider['a'], slider['k']))
-            # Generate Obstacles
-            obstacles = ObjectObstacle()
-            for obstacle in obstacle_diagram:
-                if   obstacle["type"] == "circle":       obstacles.append(Circle(obstacle['q'], obstacle['r']))
-                elif obstacle["type"] == "ellipse":      obstacles.append(Ellipse(obstacle['q'], obstacle['a'], obstacle['b']))
-                elif obstacle["type"] == "superellipse": obstacles.append(SuperEllipse(obstacle['q'], obstacle['a'], obstacle['b'], obstacle['n']))
-                elif obstacle["type"] == "rpolygon":     obstacles.append(RPolygon(obstacle['q'], obstacle['a'], obstacle['k']))
-                elif obstacle["type"] == "srpolygon":    obstacles.append(SmoothRPolygon(obstacle['q'], obstacle['a'], obstacle['k']))
-        else:
-            # Generate sliders
-            sliders = ObjectSlider()
-            _margin  = self.min_r
-            if slider_num is None: _slider_num = random.randint(1, self.slider_num) # Get sliders number
-            else: _slider_num = np.clip(slider_num, 1, 15)
-            points, radius = self.generate_spawn_points(_slider_num, self.min_r, self.max_r, self.table_limit, _margin)
+        # Slider setting
+        _sliders = ObjectSlider()
+        if slider_pose is None:
+            slider_pose = []
+            _slider_num = random.randint(1, self.slider_max_num) if slider_num is None else np.clip(slider_num, 1, 15)
+            points, radius = self.generate_spawn_points(_slider_num)
             for point, _r in zip(points, radius):
                 a = np.clip(random.uniform(0.8, 1.0) * _r, a_min=self.min_r, a_max=_r)
                 b = np.clip(random.uniform(0.75, 1.25) * a, a_min=self.min_r, a_max=_r)
                 r = random.uniform(0, np.pi * 2)
-                sliders.append(Ellipse(np.hstack((point,[r])), a, b))
-            # Generate dummy object
-            obstacles = ObjectObstacle()
-
-        self.state_max_num = len(self.pushers.q) + _slider_num * 3
-        self._state_idx = random.sample(range(1, 15), len(sliders) - 1)
-        self._state_idx.insert(0, 0)
-
-        # Pusher initial pose at corner
-        _q = np.sign(sliders[0].q[0:2]) * 0.85 * np.array([WIDTH, HEIGHT]) / 2 * self.unit
-
+                _sliders.append(Ellipse(np.hstack((point,[r])), a, b))
+                slider_pose.append([np.hstack((point,[r])), a, b])
+        else:
+            for _param in slider_pose:
+                q,a,b = _param
+                _sliders.append(Ellipse(q,a,b))
+        slider_num = len(_sliders)
+        
+        # Pusher setting
+        if pusher_pose is None:
+            # Generate random position
+            _q = np.sign(_sliders[0].q[0:2]) * 0.85 * self.display_size / 2 * self.unit
+            _q = [_q[0] * random.choice([1, -1]), _q[1] * random.choice([1, -1]), 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)]
+            pusher_pose = _q
+        else:
+            _q = pusher_pose
         # Initialize pusher position and velocity
-        self.pushers.apply_q([_q[0] * random.choice([1, -1]), _q[1] * random.choice([1, -1]), 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)])
-        # self.pushers.apply_q([_q[0], _q[1], 0., random.uniform(self.pusher_d_l_limit, self.pusher_d_u_limit)])
+        self.pushers.apply_q(_q)
         self.pushers.apply_v([0., 0., 0., 0.])
 
+        # Dummy object setting
+        _obstacles = ObjectObstacle()
+
+
+        ## Set pygame display settings
+        # Initialize pygame
+        pygame.init()                                       # Initialize pygame
+        pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
+        self.screen = pygame.display.set_mode((self.display_size[0], self.display_size[1]))   # Set pygame display size
+        self.backgound = self.create_background_surface(_table_limit, grid=False) # Generate pygame background surface
+
         # Generate pygame object surfaces
-        for pusher in self.pushers: pusher.polygon = self.create_polygon_surface(pusher.torch_points.cpu().numpy().T, COLOR["RED"],   self.unit) # Generate pygame pushers surface
-        for slider in sliders:      slider.polygon = self.create_polygon_surface(slider.torch_points.cpu().numpy().T, COLOR["BLUE"],  self.unit) # Generate pygame sliders surface
-        for obstac in obstacles:    obstac.polygon = self.create_polygon_surface(obstac.torch_points.cpu().numpy().T, COLOR["YELLOW"], self.unit) # Generate pygame sliders surface
-        sliders[0].polygon                         = self.create_polygon_surface(sliders[0].torch_points.cpu().numpy().T, COLOR["GREEN"],  self.unit) # Generate pygame sliders surface
-        self.pusher_center                         = self.create_bead_surface()
+        for pusher in self.pushers: pusher.polygon = self.create_polygon_surface(pusher.torch_points.cpu().numpy().T, COLOR["RED"]) # Generate pygame pushers surface
+        for slider in _sliders[1:]: slider.polygon = self.create_polygon_surface(slider.torch_points.cpu().numpy().T, COLOR["BLUE"]) # Generate pygame sliders surface
+        _sliders[0].polygon                        = self.create_polygon_surface(_sliders[0].torch_points.cpu().numpy().T, COLOR["GREEN"]) # Generate pygame sliders surface
+        self.pusher_bead                           = self.create_bead_surface()
+
+
+        self._prev_target_dist = 0.
+        self._slider_origin_dist = np.linalg.norm(_sliders.q.reshape(-1,3)[:,0:2], axis=1)
+
 
         # Quasi-static simulation class
         # Generate parameter functions
-        self.param = ParamFunction(sliders,
+        self.param = ParamFunction(_sliders,
                                    self.pushers, 
-                                   obstacles, 
+                                   _obstacles, 
                                    self.dist_threshold,
                                    )
         
-        self._simulate_once(action=[0., 0., 0., 0., 1.], repeat=1)
-        return self.generate_result()
+        self._simulate_once(action=[0., 0., 0., 0.], repeat=1)
+        return self.generate_result(), {"table_size":table_size, "pusher_pose":pusher_pose, "slider_pose":slider_pose, "slider_num":slider_num}
 
     def step(self, action):
         """
@@ -206,8 +191,9 @@ class Simulation():
 
         # Update pygame display
         self._visualize_update()
-
-        return self.generate_result(success, target_phi=phi[:len(self.param.pushers)], obs_phi=phi[len(self.param.pushers):len(self.param.pushers)*len(self.param.sliders)])
+        _n_pusher = len(self.param.pushers)
+        _n_slider = len(self.param.sliders)
+        return self.generate_result(success, target_phi=phi[:_n_pusher], obs_phi=phi[_n_pusher:_n_pusher*_n_slider])
     
     def _visualize_update(self):
         if self.visualization:
@@ -234,76 +220,64 @@ class Simulation():
             # Show updated pygame display
             _q = (int(self.param.pushers.q[0] / self.unit + self.display_center[0] - 16),
                   int(-self.param.pushers.q[1] / self.unit + self.display_center[1] - 16))
-            self.screen.blit(self.pusher_center, _q)
+            self.screen.blit(self.pusher_bead, _q)
             pygame.display.flip()
             return
         else: 
             return
 
     def _simulate_once(self, action, repeat:int = 1):
-        if(len(action) == 4):
-            action = np.hstack((action, 1))
+        if(len(action) != 4): print("Invalid action space")
         _fail_count = 0
         _fail_count2 = 0
 
         # Limit pusher speed
         action = np.clip(action, self.action_limit[:, 0], self.action_limit[:, 1])
+        action *= self.unit_speed
 
-        action[:4] *= self.unit_speed
         for _ in range(repeat):
             # Update parameters for quasi-state simulation
             self.param.update_param()
             # Get parameters for simulations
             _qs, _qp, _phi, _JNS, _JNP, _JTS, _JTP, _mu, _A, _B = self.param.get_simulate_param()
-            if action[4]:
-                if not self.gripper_on:
-                    if np.min(_phi[:len(self.param.pushers) * len(self.param.sliders)]) < -0.001: 
-                        success = False
-                        break
-                self.gripper_on = True
-                _vec = self.param.sliders[0].q[:2] - self.param.pushers.q[:2]
-                _vec = np.arctan2(_vec[1], _vec[0]) - np.pi / 2
-                _rot = np.array([
-                    [-np.sin(_vec), -np.cos(_vec)],
-                    [ np.cos(_vec), -np.sin(_vec)]
-                    ])
-                # Run quasi-static simulator
-                _action = action[:4] + random.choice([1., 0.5, -0.5, -1.]) * 1e-6
-                _action[:2] = _rot@_action[:2]
-                qs, qp, success = self.simulator.run(
-                    u_input = _action * self.frame,
-                    qs  = _qs,
-                    qp  = _qp,
-                    phi = _phi,
-                    JNS = _JNS,
-                    JNP = _JNP,
-                    JTS = _JTS,
-                    JTP = _JTP,
-                    mu  = _mu,
-                    A   = _A,
-                    B   = _B,
-                    perfect_u_control = False
-                    )
+            if not self.gripper_on:
+                if np.min(_phi[:len(self.param.pushers) * len(self.param.sliders)]) < -0.001: 
+                    success = False
+                    break
+            self.gripper_on = True
+            _vec = self.param.sliders[0].q[:2] - self.param.pushers.q[:2]
+            _vec = np.arctan2(_vec[1], _vec[0]) - np.pi / 2
+            _rot = np.array([
+                [-np.sin(_vec), -np.cos(_vec)],
+                [ np.cos(_vec), -np.sin(_vec)]
+                ])
+            # Run quasi-static simulator
+            _action = action[:4] + random.choice([1., 0.5, -0.5, -1.]) * 1e-6
+            _action[:2] = _rot@_action[:2]
+            qs, qp, success = self.simulator.run(
+                u_input = _action * self.frame,
+                qs  = _qs,
+                qp  = _qp,
+                phi = _phi,
+                JNS = _JNS,
+                JNP = _JNP,
+                JTS = _JTS,
+                JTP = _JTP,
+                mu  = _mu,
+                A   = _A,
+                B   = _B,
+                perfect_u_control = False
+                )
 
-                ## Update simulation results
-                if success:
-                    self.param.sliders.apply_v((qs - _qs) / self.frame) # Update slider velocity
-                    self.param.sliders.apply_q(qs)                      # Update slider position
-                    qp[:2] = np.clip(qp[:2], -self.display_center * 0.85 * self.unit + self.param.pushers.q[3] / 3, self.display_center * 0.85 * self.unit - self.param.pushers.q[3] / 3)
-                    self.param.pushers.apply_v((qp - _qp) / self.frame) # Update pusher velocity
-                    self.param.pushers.apply_q(qp)                      # Update pusher position
-                else: 
-                    _fail_count += 1
-            else:
-                _rot = np.array([
-                    [-np.sin(self.param.pushers.rot), -np.cos(self.param.pushers.rot)],
-                    [np.cos(self.param.pushers.rot),  -np.sin(self.param.pushers.rot)]
-                    ])
-                qp = _qp + np.hstack([_rot@action[:2], action[2], action[3]]) * self.frame
+            ## Update simulation results
+            if success:
+                self.param.sliders.apply_v((qs - _qs) / self.frame) # Update slider velocity
+                self.param.sliders.apply_q(qs)                      # Update slider position
                 qp[:2] = np.clip(qp[:2], -self.display_center * 0.85 * self.unit + self.param.pushers.q[3] / 3, self.display_center * 0.85 * self.unit - self.param.pushers.q[3] / 3)
-                self.param.pushers.apply_q(qp)
-                success = True
-                self.gripper_on = False
+                self.param.pushers.apply_v((qp - _qp) / self.frame) # Update pusher velocity
+                self.param.pushers.apply_q(qp)                      # Update pusher position
+            else: 
+                _fail_count += 1
         
         if _fail_count != 0: print("\t\trecover pusher input ", _fail_count)
         for _ in range(_fail_count * 12):
@@ -381,7 +355,6 @@ class Simulation():
             # Pusher pose   4 (x,y,r,width)
             # target data   5 (x,y,r,a,b)
             # obstacle data 5 (x,y,r,a,b) * N (max 15)
-
             _table   = copy.deepcopy(self.table_limit)
             _pusher  = copy.deepcopy(self.param.qp)
             _sliders = np.zeros(len(self.param.sliders)*5)
@@ -401,22 +374,24 @@ class Simulation():
                 state2 = np.vstack((state2, np.zeros((2 - len(state2), 5))))
             state = state1, state2
 
+        # slider pose
+        _slider_q = self.param.sliders.q.reshape(-1,3)[:,0:2]
+        # distance
+        target_dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
+        slider_dist = np.linalg.norm(_slider_q, axis=1)
+
         ## reward
         reward = 0.0
-        # distance
-        dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
-        
-        # reward += int((1 - (dist * 2))*100) / 1000
-        
-        # if (dist - self.prev_dist) < -1e-2:
-        #     pass
-        # else: reward += -0.1
-        reward += -0.1
+        if (target_dist - self._prev_target_dist) < -1e-2: pass
+        else: reward += -0.01
+        if np.any(self._slider_origin_dist - slider_dist + 1e-6 < 0): 
+            reward += -0.1
 
-        self.prev_dist = dist
+        self._prev_target_dist = target_dist
+        self._slider_origin_dist = slider_dist
 
-        if dist < 0.01:
-            
+
+        if target_dist < 0.01:
             _width = 10.
             print("\t\ttry grasp")
             while True:
@@ -428,8 +403,8 @@ class Simulation():
                     break
                 else: _width = self.param.pushers.q[3]
 
-                dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
-                if (max(target_phi) < 0.003) and (dist < 0.01):
+                target_dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
+                if (max(target_phi) < 0.003) and (target_dist < 0.01):
                     print("\t\t\tgrasp")
                     done = True
                     break
@@ -440,28 +415,40 @@ class Simulation():
                 obs_phi=phi[len(self.param.pushers):len(self.param.pushers)*len(self.param.sliders)]
 
         ## done
-        for slider in self.param.sliders:
-            if np.any(np.abs(slider.q[0:2]) > self.table_limit):
-                done = True
-                # reward -= 0.05
-                reward -= 0.5
-                print("\t\t\tdish fall out")
-                break
+        if np.any(np.abs(_slider_q) > self.table_limit):
+            indices = np.where(np.abs(_slider_q) > self.table_limit)[0]
+            for i in sorted(indices, reverse=True):
+                del self.param.sliders[i]
+            print("\t\t\tdish fall out")
+            done = True
+            reward -= 5
         if max(target_phi) < 0.015:
+            del self.param.sliders[0]
             print("\t\t\tgrasp successed!!")
             done = True
             reward = +10
-            # reward = +75
             obs_phi = obs_phi[np.where(obs_phi > 0)]
             if len(obs_phi) > 0:
                 reward += np.log(min(obs_phi)) * 5 / 10
-                # reward += np.log(min(obs_phi)) * 5
         return state, reward, done
     
-    def generate_spawn_points(self, num_points, min_r, max_r, limit, margin, center_bias=0.8):
+    def get_setting(self):
+        # return {"table_size":table_size, "pusher_pose":pusher_pose, "slider_pose":slider_pose, "slider_num":slider_num}
+        
+        # Table setting
+        table_size = self.table_limit * 2
+        pusher_pose = self.pushers.q
+        slider_pose = []
+        for slider in self.param.sliders:
+            slider_pose.append([slider.q, slider.a, slider.b])
+        slider_num = len(self.param.sliders)
+
+        return {"table_size":table_size, "pusher_pose":pusher_pose, "slider_pose":slider_pose, "slider_num":slider_num}
+
+    def generate_spawn_points(self, num_points, center_bias=0.8):
         points = []
-        x_range = (-limit[0] + margin, limit[0] - margin)
-        y_range = (-limit[1] + margin, limit[1] - margin)
+        x_range = (-self.table_limit[0] + self.min_r, self.table_limit[0] - self.min_r)
+        y_range = (-self.table_limit[1] + self.min_r, self.table_limit[1] - self.min_r)
 
         # 첫 번째 점을 랜덤하게 생성
         center_x = random.uniform(*x_range)
@@ -469,8 +456,8 @@ class Simulation():
         points.append((center_x, center_y))
 
         # Raduis of inital point
-        init_r = random.uniform(min_r, max_r)
-        available_lengh = (init_r + min_r, init_r + max_r)
+        init_r = random.uniform(self.min_r, self.max_r)
+        available_lengh = (init_r + self.min_r, init_r + self.max_r)
         
         # 나머지 점 생성
         candidate_points = []
@@ -487,35 +474,36 @@ class Simulation():
         # 거리 조건을 만족하는 점만 선택
         for point in candidate_points:
             distances = [np.sqrt((point[0] - p[0])**2 + (point[1] - p[1])**2) for p in points]
-            if all(d >= (init_r + min_r) for d in distances):
+            if all(d >= (init_r + self.min_r) for d in distances):
                 points.append(point)
         
         points = np.array(points)
 
-        min_distances = np.ones(len(points)) * min_r
+        min_distances = np.ones(len(points)) * self.min_r
         min_distances[0] = init_r
 
         for idx, point in enumerate(points):
             if idx == 0: continue
             distances = [np.sqrt((point[0] - p[0])**2 + (point[1] - p[1])**2) for p in points]
             distances = distances - min_distances
-            distances[idx] = max_r
+            distances[idx] = self.max_r
             min_distances[idx] = min(distances)
 
         # 첫 번째 점을 포함한 최종 점 리스트
         return points, np.array(min_distances)
 
-    def create_background_surface(self, width, height, table_size, unit, grid:bool = False):
+    def create_background_surface(self, table_size, grid:bool = False):
+
+        _width, _height = self.display_size
+
         # Generate pygame surface
-        background_surface = pygame.Surface((width, height))    # Generate pygame surface with specific size
+        background_surface = pygame.Surface((_width, _height))    # Generate pygame surface with specific size
         background_surface.fill(COLOR["BLACK"])                          # Fill surface as white
 
         # Draw white rectangle at the center
-        center_x = width // 2
-        center_y = height // 2
         table_rect = pygame.Rect(
-            center_x - table_size[0] // 2,  # Top-left x
-            center_y - table_size[1] // 2,  # Top-left y
+            self.display_center[0] - table_size[0] // 2,  # Top-left x
+            self.display_center[1] - table_size[1] // 2,  # Top-left y
             table_size[0],                  # Width
             table_size[1]                   # Height
         )
@@ -524,18 +512,18 @@ class Simulation():
         # Draw gridlines
         # 0.1m spacing
         if grid:
-            gap = 1 / unit / 10  # Guideline lengh
-            for y_idx in range(int(height / gap)): pygame.draw.line(background_surface, COLOR["LIGHTGRAY"], (0, y_idx * gap), (width, y_idx * gap), 2)  # horizontal gridlines
-            for x_idx in range(int(width  / gap)): pygame.draw.line(background_surface, COLOR["LIGHTGRAY"], (x_idx * gap, 0), (x_idx * gap, height), 2) # vertical gridlines
+            gap = 1 / self.unit / 10  # Guideline lengh
+            for y_idx in range(int(_height / gap)): pygame.draw.line(background_surface, COLOR["LIGHTGRAY"], (0, y_idx * gap), (_width, y_idx * gap), 2)  # horizontal gridlines
+            for x_idx in range(int(_width  / gap)): pygame.draw.line(background_surface, COLOR["LIGHTGRAY"], (x_idx * gap, 0), (x_idx * gap, _height), 2) # vertical gridlines
             # 1m spacing
-            gap = 1 / unit      # Guideline lengh
-            for y_idx in range(int(height / gap)): pygame.draw.line(background_surface, COLOR["DARKGRAY"], (0, y_idx * gap), (width, y_idx * gap), 2)   # horizontal gridlines
-            for x_idx in range(int(width  / gap)): pygame.draw.line(background_surface, COLOR["DARKGRAY"], (x_idx * gap, 0), (x_idx * gap, height), 2)  # vertical gridlines
+            gap = 1 / self.unit      # Guideline lengh
+            for y_idx in range(int(_height / gap)): pygame.draw.line(background_surface, COLOR["DARKGRAY"], (0, y_idx * gap), (_width, y_idx * gap), 2)   # horizontal gridlines
+            for x_idx in range(int(_width  / gap)): pygame.draw.line(background_surface, COLOR["DARKGRAY"], (x_idx * gap, 0), (x_idx * gap, _height), 2)  # vertical gridlines
         return background_surface
 
-    def create_polygon_surface(self, points, color, unit):
+    def create_polygon_surface(self, points, color):
         # Convert polygon points coordinate to pygame display coordinate\
-        _points = points.T / unit
+        _points = points.T / self.unit
 
         w_l = np.abs(np.min(_points[:,0])) if np.abs(np.min(_points[:,0])) > np.max(_points[:,0]) else np.max(_points[:,0])
         h_l = np.abs(np.min(_points[:,1])) if np.abs(np.min(_points[:,1])) > np.max(_points[:,1]) else np.max(_points[:,1])
@@ -576,6 +564,13 @@ class Simulation():
 class DishSimulation():
     def __init__(self, visualize:str = 'human', state:str = 'image', random_place:bool = True, action_skip:int = 5):
         self.env = Simulation(visualize = visualize, state = state, random_place = random_place, action_skip = action_skip)
+        self._count = 0
+        self._pusher_direction = np.array([[1, 1, 1, 1],
+                                           [-1, 1, 1, 1],
+                                           [-1, -1, 1, 1],
+                                           [1, -1, 1, 1],
+                                           ])
+        self._setting = None
 
     def keyboard_input(self, action):
         # Keyboard event
@@ -604,27 +599,57 @@ class DishSimulation():
         elif keys[pygame.K_RIGHT]: action[3] +=  1/10  # Increase width
         else:                      action[3]  = 0
 
-        if keys[pygame.K_SPACE]:   action[4] = 1  # Gripper On
-        else:                      action[4] = 0  # Gripper Off
-
         if keys[pygame.K_r]: 
             return np.zeros_like(action), True
 
         return action, False
     
+    def reset(self, mode:str="None", slider_num:int = 15):
+        if mode == None: 
+            state_curr, _ = self.env.reset(slider_num=slider_num)
+            return state_curr
+
+        elif mode == "continous":
+            if (self._setting == None) or (len(self.env.param.sliders) == 0):
+                state_curr, self._setting = self.env.reset(slider_num=slider_num)
+            else:
+                _setting = self.env.get_setting()
+                state_curr, _ = self.env.reset(
+                    table_size  = _setting["table_size"],
+                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(0,3)],
+                    slider_pose = _setting["slider_pose"],
+                    slider_num  = _setting["slider_num"],
+                    )
+            return state_curr
+        
+        elif mode == "pusher":
+            if self._count == 0:
+                state_curr, self._setting = self.env.reset(slider_num=slider_num)
+                self._count += 1
+            else:
+                state_curr, _ = self.env.reset(
+                    table_size  = self._setting["table_size"],
+                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[self._count],
+                    slider_pose = self._setting["slider_pose"],
+                    slider_num  = self._setting["slider_num"],
+                    )
+                self._count = (self._count + 1) % 4
+            return state_curr
+
     def __del__(self):
         del self.env
 
 if __name__=="__main__":
     sim = DishSimulation(state='linear', action_skip=1)
     # sim = DishSimulation()
-    observ_space = sim.env.observation_space.shape[0]
+    _ = sim.reset(mode="continous", slider_num=6)
+    # observ_space = sim.env.observation_space.shape[0]
     action_space = sim.env.action_space.shape[0]
     action = np.zeros(action_space) # Initialize pusher's speed set as zeros 
     while True:
         action, reset = sim.keyboard_input(action)
-        state, reward, done = sim.env.step(action=action[:4])
-        print(state)
+        state, reward, done = sim.env.step(action=action)
+        a, b = state
         if reset or done:
             # sim.env.reset(slider_num=1)
-            sim.env.reset(  )
+            sim.reset(mode="continous")
