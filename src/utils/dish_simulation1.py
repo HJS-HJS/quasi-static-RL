@@ -169,7 +169,7 @@ class Simulation():
 
 
         self._prev_target_dist = 0.
-        self._slider_origin_dist = np.linalg.norm(_sliders.q.reshape(-1,3)[:,0:2], axis=1)
+        self._slider_origin_dist = np.linalg.norm(_sliders.q.reshape(-1,3)[:,0:2] / self.table_limit, axis=1)
 
 
         # Quasi-static simulation class
@@ -378,14 +378,15 @@ class Simulation():
         _slider_q = self.param.sliders.q.reshape(-1,3)[:,0:2]
         # distance
         target_dist = np.linalg.norm(self.param.sliders[0].q[0:2] - self.param.pushers.q[0:2])
-        slider_dist = np.linalg.norm(_slider_q, axis=1)
+        slider_dist = np.linalg.norm(_slider_q / self.table_limit, axis=1)
 
         ## reward
         reward = 0.0
-        if (target_dist - self._prev_target_dist) < -1e-2: pass
-        else: reward += -0.01
-        if np.any(self._slider_origin_dist - slider_dist + 1e-6 < 0): 
-            reward += -0.1
+        if (target_dist - self._prev_target_dist) < -1e-2: reward += 0.01
+        else: pass #reward += -0.01
+        _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
+        if len(_delta_slider_dist) > 0:
+            reward += -0.1 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
@@ -607,7 +608,7 @@ class DishSimulation():
     def reset(self, mode:str="None", slider_num:int = 15):
         if mode == None: 
             state_curr, _ = self.env.reset(slider_num=slider_num)
-            return state_curr
+            self._setting = None
 
         elif mode == "continous":
             if (self._setting == None) or (len(self.env.param.sliders) == 0):
@@ -620,7 +621,6 @@ class DishSimulation():
                     slider_pose = _setting["slider_pose"],
                     slider_num  = _setting["slider_num"],
                     )
-            return state_curr
         
         elif mode == "pusher":
             if self._count == 0:
@@ -634,7 +634,8 @@ class DishSimulation():
                     slider_num  = self._setting["slider_num"],
                     )
                 self._count = (self._count + 1) % 4
-            return state_curr
+        
+        return state_curr
 
     def __del__(self):
         del self.env
