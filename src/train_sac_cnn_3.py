@@ -42,7 +42,7 @@ BATCH_SIZE = 128
 EPOCH_SIZE = 1
 # Other
 visulaize_step = 10
-MAX_STEP = 200         # maximun available step per episode
+MAX_STEP = 250         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/SAC_cnn_3"
