@@ -49,6 +49,11 @@ def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     # print(f"\t\tModels saved at episode {episode}")
 
 def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
+    if episode is None:
+        folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+        numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+        episode = max(numbered_folders)
+
     _save_dir = save_dir + "/" + str(episode) + "/"
     save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     if os.path.exists(_save_dir):
@@ -60,6 +65,11 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     return network
 
 def load_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], episode:int):
+    if episode is None:
+        folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+        numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+        episode = max(numbered_folders)
+
     _save_dir = save_dir + "/" + str(episode) + "/"
     for idx in range(len(networks)):
         save_path = os.path.join(_save_dir, f"{str(names[idx])}.pth")
@@ -72,6 +82,11 @@ def load_models(networks:List[torch.nn.Module], save_dir:str, names:List[str], e
     return networks
 
 def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
+    if episode is None:
+        folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+        numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+        episode = max(numbered_folders)
+        
     _save_dir = save_dir + "/" + str(episode) + "/"
     save_path = os.path.join(_save_dir, f"{str(name)}.pth")
     if os.path.exists(save_path):
