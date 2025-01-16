@@ -418,7 +418,7 @@ class Simulation():
 
         ## done
         if np.any(np.abs(_slider_q) > self.table_limit):
-            indices = np.where(np.abs(_slider_q) > self.table_limit)[0]
+            indices = np.unique(np.where(np.abs(_slider_q) > self.table_limit)[0])
             for i in sorted(indices, reverse=True):
                 print(i)
                 del self.param.sliders[i]

@@ -35,6 +35,7 @@ class Simulation():
             os.environ["SDL_VIDEODRIVER"] = "dummy"
         else:
             print("[Info] simulator is visulaized")
+            os.environ["SDL_VIDEODRIVER"] = "x11"
         
         if (visualize == "human") or (state != "linear"):
             self.visualization = True
@@ -79,7 +80,10 @@ class Simulation():
         self.frame = 1 / _fps                       # 1 frame = 1/fps
         sim_step = self.config["simulator"]["sim_step"] # Maximun LCP solver step
         self.dist_threshold = float(self.config["simulator"]["dist_threshold"]) # Distance to decide whether to calculate parameters
-
+        # Initialize pygame
+        pygame.init()                                       # Initialize pygame
+        pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
+        self.screen = pygame.display.set_mode((self.display_size[0], self.display_size[1]))   # Set pygame display size
 
         ## Generate objects
         # Generate pushers
@@ -154,11 +158,11 @@ class Simulation():
         _obstacles = ObjectObstacle()
 
 
-        ## Set pygame display settings
-        # Initialize pygame
-        pygame.init()                                       # Initialize pygame
-        pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
-        self.screen = pygame.display.set_mode((self.display_size[0], self.display_size[1]))   # Set pygame display size
+        # ## Set pygame display settings
+        # # Initialize pygame
+        # pygame.init()                                       # Initialize pygame
+        # pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
+        # self.screen = pygame.display.set_mode((self.display_size[0], self.display_size[1]))   # Set pygame display size
         self.backgound = self.create_background_surface(_table_limit, grid=False) # Generate pygame background surface
 
         # Generate pygame object surfaces
@@ -383,7 +387,7 @@ class Simulation():
         ## reward
         reward = 0.0
         if (target_dist - self._prev_target_dist) < -1e-2: pass
-        else: reward += -0.05
+        else: reward += -0.05   
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
             reward += -0.02 * np.sum(slider_dist[_delta_slider_dist])
@@ -417,8 +421,9 @@ class Simulation():
 
         ## done
         if np.any(np.abs(_slider_q) > self.table_limit):
-            indices = np.where(np.abs(_slider_q) > self.table_limit)[0]
+            indices = np.unique(np.where(np.abs(_slider_q) > self.table_limit)[0])
             for i in sorted(indices, reverse=True):
+                print(i)
                 del self.param.sliders[i]
             print("\t\t\tdish fall out")
             done = True
@@ -570,6 +575,10 @@ class DishSimulation():
                                            [-1, 1, 1, 1],
                                            [-1, -1, 1, 1],
                                            [1, -1, 1, 1],
+                                           [1, 0, 1, 1],
+                                           [-1, 0, 1, 1],
+                                           [0, 1, 1, 1],
+                                           [0, -1, 1, 1],
                                            ])
         self._setting = None
 
@@ -617,7 +626,8 @@ class DishSimulation():
                 _setting = self.env.get_setting()
                 state_curr, _ = self.env.reset(
                     table_size  = _setting["table_size"],
-                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(0,3)],
+                    # pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(0,3)],
+                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(1,7)],
                     slider_pose = _setting["slider_pose"],
                     slider_num  = _setting["slider_num"],
                     )
