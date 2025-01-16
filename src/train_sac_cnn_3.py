@@ -25,7 +25,7 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 TRAIN           = True
 LOAD            = False
 # LOAD            = True
-FILE_NAME = "start"
+FILE_NAME = None
 # Learning frame
 FRAME = 8
 # Learning Parameters
@@ -221,7 +221,8 @@ if TRAIN:
 
         # 0. Reset environment
         if (episode // 4) % 3 == 0:
-            state_curr, _, _ = sim.reset(mode=None, slider_num=8)
+            if episode % 2 == 0: state_curr, _, _ = sim.reset(mode=None, slider_num=3)
+            else:                state_curr, _, _ = sim.reset(mode=None, slider_num=8)
         elif (episode // 4) % 3 == 1:
             state_curr, _, _ = sim.reset(mode="continous", slider_num=8)
         elif (episode // 4) % 3 == 2:
