@@ -23,8 +23,8 @@ from utils.utils       import live_plot, show_result, save_models, save_tensor, 
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-LOAD            = False
-# LOAD            = True
+# LOAD            = False
+LOAD            = True
 FILE_NAME = None
 # Learning frame
 FRAME = 8
