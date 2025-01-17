@@ -448,14 +448,14 @@ class Simulation():
 
         return {"table_size":table_size, "pusher_pose":pusher_pose, "slider_pose":slider_pose, "slider_num":slider_num}
 
-    def generate_spawn_points(self, num_points, center_bias=0.8):
+    def generate_spawn_points(self, num_points, center_bias=0.75):
         points = []
         x_range = (-self.table_limit[0] + self.min_r * 1.3, self.table_limit[0] - self.min_r * 1.3)
         y_range = (-self.table_limit[1] + self.min_r * 1.3, self.table_limit[1] - self.min_r * 1.3)
 
         # 첫 번째 점을 랜덤하게 생성
-        center_x = random.uniform(*x_range)
-        center_y = random.uniform(*y_range)
+        center_x = random.uniform(*x_range) * 0.9
+        center_y = random.uniform(*y_range) * 0.9
         points.append((center_x, center_y))
 
         # Raduis of inital point

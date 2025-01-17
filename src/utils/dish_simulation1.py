@@ -29,7 +29,7 @@ class Simulation():
         # Set pygame display
         if visualize == "human":
             print("[Info] simulator is visulaized")
-            os.environ["SDL_VIDEODRIVER"] = "x11"
+            os.environ["SDL_VIDEODRIVER"] = "x11"   
         elif visualize is None:
             print("[Info] simulator is NOT visulaized")
             os.environ["SDL_VIDEODRIVER"] = "dummy"
@@ -391,6 +391,9 @@ class Simulation():
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
             reward += -0.03 * np.sum(slider_dist[_delta_slider_dist])
+        _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist - 1e-4 > 0)[0]
+        if len(_delta_slider_dist) > 0:
+            reward += 0.01 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
@@ -427,7 +430,7 @@ class Simulation():
                 del self.param.sliders[i]
             print("\t\t\tdish fall out")
             done = True
-            reward -= 15
+            reward -= 20
         if max(target_phi) < 0.015:
             del self.param.sliders[0]
             print("\t\t\tgrasp successed!!")
@@ -451,14 +454,14 @@ class Simulation():
 
         return {"table_size":table_size, "pusher_pose":pusher_pose, "slider_pose":slider_pose, "slider_num":slider_num}
 
-    def generate_spawn_points(self, num_points, center_bias=0.8):
+    def generate_spawn_points(self, num_points, center_bias=0.75):
         points = []
         x_range = (-self.table_limit[0] + self.min_r * 1.3, self.table_limit[0] - self.min_r * 1.3)
         y_range = (-self.table_limit[1] + self.min_r * 1.3, self.table_limit[1] - self.min_r * 1.3)
 
         # 첫 번째 점을 랜덤하게 생성
-        center_x = random.uniform(*x_range)
-        center_y = random.uniform(*y_range)
+        center_x = random.uniform(*x_range) * 0.9
+        center_y = random.uniform(*y_range) * 0.9
         points.append((center_x, center_y))
 
         # Raduis of inital point
