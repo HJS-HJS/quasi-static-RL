@@ -382,7 +382,7 @@ class Simulation():
         slider_dist = np.linalg.norm(_slider_q / self.table_limit, axis=1)
 
         ## reward
-        # reward = 0.0
+        reward = 0.0
         # if (target_dist - self._prev_target_dist) < -1e-3: pass
         # else: reward += -0.2
         reward += -0.1
