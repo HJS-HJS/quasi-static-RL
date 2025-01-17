@@ -14,16 +14,16 @@ import time
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 sys.path.append(os.path.abspath(current_directory + "/third_party/quasi_static_push/scripts/"))
-from utils.dish_simulation5 import DishSimulation
+from utils.dish_simulation6 import DishSimulation
 
 from utils.sac_dataset2   import SACDataset
 from utils.utils         import live_plot, show_result, save_models, save_tensor, load_model, load_models, load_tensor
 
 ## Parameters
-# TRAIN           = False
-TRAIN           = True
-# LOAD            = False
-LOAD            = True
+TRAIN           = False
+# TRAIN           = True
+LOAD            = False
+# LOAD            = True
 FILE_NAME = None
 # Learning frame
 FRAME = 8
@@ -44,7 +44,7 @@ visulaize_step = 20
 MAX_STEP = 250         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/SAC_linear_5"
+SAVE_DIR = current_directory + "/../model/SAC_linear_6"
 
 sim = DishSimulation(
     visualize=None,
@@ -309,11 +309,11 @@ if TRAIN:
 
         # 0. Reset environment
         if (episode // 2) % 4 == 0:
-            state_curr, _, _ = sim.reset(mode=None, slider_num=4)
+            state_curr, _, _ = sim.reset(mode=None, slider_num=2)
         elif (episode // 2) % 4 == 1:
-            state_curr, _, _ = sim.reset(mode=None, slider_num=8)
+            state_curr, _, _ = sim.reset(mode=None, slider_num=6)
         elif (episode // 2) % 4 == 2:
-            state_curr, _, _ = sim.reset(mode="continous", slider_num=6)
+            state_curr, _, _ = sim.reset(mode="continous", slider_num=5)
         elif (episode // 2) % 4 == 3:
             state_curr, _, _ = sim.reset(mode="pusher", slider_num=8)
 
