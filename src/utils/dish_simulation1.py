@@ -387,10 +387,10 @@ class Simulation():
         ## reward
         reward = 0.0
         if (target_dist - self._prev_target_dist) < -1e-2: pass
-        else: reward += -0.05   
+        else: reward += -0.05
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
-            reward += -0.02 * np.sum(slider_dist[_delta_slider_dist])
+            reward += -0.03 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
@@ -427,15 +427,15 @@ class Simulation():
                 del self.param.sliders[i]
             print("\t\t\tdish fall out")
             done = True
-            reward -= 5
+            reward -= 15
         if max(target_phi) < 0.015:
             del self.param.sliders[0]
             print("\t\t\tgrasp successed!!")
             done = True
-            reward = +10
+            reward = +25
             obs_phi = obs_phi[np.where(obs_phi > 0)]
-            if len(obs_phi) > 0:
-                reward += np.log(min(obs_phi)) * 5 / 10
+            # if len(obs_phi) > 0:
+            #     reward += np.log(min(obs_phi)) * 5 / 10
         return state, reward, done
     
     def get_setting(self):
@@ -453,8 +453,8 @@ class Simulation():
 
     def generate_spawn_points(self, num_points, center_bias=0.8):
         points = []
-        x_range = (-self.table_limit[0] + self.min_r, self.table_limit[0] - self.min_r)
-        y_range = (-self.table_limit[1] + self.min_r, self.table_limit[1] - self.min_r)
+        x_range = (-self.table_limit[0] + self.min_r * 1.3, self.table_limit[0] - self.min_r * 1.3)
+        y_range = (-self.table_limit[1] + self.min_r * 1.3, self.table_limit[1] - self.min_r * 1.3)
 
         # 첫 번째 점을 랜덤하게 생성
         center_x = random.uniform(*x_range)

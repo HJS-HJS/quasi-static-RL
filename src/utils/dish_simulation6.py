@@ -160,6 +160,9 @@ class Simulation():
 
         # ## Set pygame display settings
         # # Initialize pygame
+        # pygame.init()                                       # Initialize pygame
+        # pygame.display.set_caption("Quasi-static pushing")  # Set pygame display window name
+        # self.screen = pygame.display.set_mode((self.display_size[0], self.display_size[1]))   # Set pygame display size
         self.backgound = self.create_background_surface(_table_limit, grid=False) # Generate pygame background surface
 
         # Generate pygame object surfaces
@@ -383,12 +386,11 @@ class Simulation():
 
         ## reward
         reward = 0.0
-        if (target_dist - self._prev_target_dist) < -1e-3: pass
-        else: reward += -0.1
-        # reward += -0.1
+        if (target_dist - self._prev_target_dist) < -1e-2: pass
+        else: reward += -0.05
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
-            reward += -0.025 * np.sum(slider_dist[_delta_slider_dist])
+            reward += -0.03 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
@@ -425,7 +427,7 @@ class Simulation():
                 del self.param.sliders[i]
             print("\t\t\tdish fall out")
             done = True
-            reward -= 10
+            reward -= 25
         if max(target_phi) < 0.015:
             del self.param.sliders[0]
             print("\t\t\tgrasp successed!!")
@@ -451,8 +453,8 @@ class Simulation():
 
     def generate_spawn_points(self, num_points, center_bias=0.8):
         points = []
-        x_range = (-self.table_limit[0] + self.min_r, self.table_limit[0] - self.min_r)
-        y_range = (-self.table_limit[1] + self.min_r, self.table_limit[1] - self.min_r)
+        x_range = (-self.table_limit[0] + self.min_r * 1.3, self.table_limit[0] - self.min_r * 1.3)
+        y_range = (-self.table_limit[1] + self.min_r * 1.3, self.table_limit[1] - self.min_r * 1.3)
 
         # 첫 번째 점을 랜덤하게 생성
         center_x = random.uniform(*x_range)
@@ -569,14 +571,13 @@ class DishSimulation():
     def __init__(self, visualize:str = 'human', state:str = 'image', random_place:bool = True, action_skip:int = 5):
         self.env = Simulation(visualize = visualize, state = state, random_place = random_place, action_skip = action_skip)
         self._count = 0
-        self._pusher_direction = np.array([
-                                        #    [1, 1, 1, 1],
+        self._pusher_direction = np.array([[1, 1, 1, 1],
                                            [-1, 1, 1, 1],
                                            [-1, -1, 1, 1],
                                            [1, -1, 1, 1],
-                                        #    [1, 0, 1, 1],
+                                           [1, 0, 1, 1],
                                            [-1, 0, 1, 1],
-                                        #    [0, 1, 1, 1],
+                                           [0, 1, 1, 1],
                                            [0, -1, 1, 1],
                                            ])
         self._setting = None
@@ -625,7 +626,8 @@ class DishSimulation():
                 _setting = self.env.get_setting()
                 state_curr, _ = self.env.reset(
                     table_size  = _setting["table_size"],
-                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(0,4)],
+                    # pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(0,3)],
+                    pusher_pose = self._setting["pusher_pose"] * self._pusher_direction[np.random.randint(1,7)],
                     slider_pose = _setting["slider_pose"],
                     slider_num  = _setting["slider_num"],
                     )
