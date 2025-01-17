@@ -388,7 +388,7 @@ class Simulation():
         # reward += -0.1
         _delta_slider_dist = np.where(self._slider_origin_dist - slider_dist + 1e-4 < 0)[0]
         if len(_delta_slider_dist) > 0:
-            reward += -0.01 * np.sum(slider_dist[_delta_slider_dist])
+            reward += -0.025 * np.sum(slider_dist[_delta_slider_dist])
 
         self._prev_target_dist = target_dist
         self._slider_origin_dist = slider_dist
@@ -425,15 +425,15 @@ class Simulation():
                 del self.param.sliders[i]
             print("\t\t\tdish fall out")
             done = True
-            reward -= 5
+            reward -= 10
         if max(target_phi) < 0.015:
             del self.param.sliders[0]
             print("\t\t\tgrasp successed!!")
             done = True
             reward = +25
             obs_phi = obs_phi[np.where(obs_phi > 0)]
-            if len(obs_phi) > 0:
-                reward += np.log(min(obs_phi)) * 5 / 10
+            # if len(obs_phi) > 0:
+            #     reward += np.log(min(obs_phi)) * 5 / 10
         return state, reward, done
     
     def get_setting(self):
