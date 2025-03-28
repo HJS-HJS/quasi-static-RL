@@ -48,6 +48,13 @@ def save_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     torch.save(tensor, save_path)
     # print(f"\t\tModels saved at episode {episode}")
 
+def save_numpy(numpy:np.array, save_dir:str, name:str, episode:int):
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    os.makedirs(_save_dir, exist_ok=True)
+    save_path = os.path.join(_save_dir, f"{str(name)}")
+    np.save(save_path, numpy)
+    # print(f"\t\tModels saved at episode {episode}")
+
 def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     if episode is None:
         folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
@@ -59,7 +66,7 @@ def load_model(network:torch.nn.Module, save_dir:str, name:str, episode:int):
     if os.path.exists(_save_dir):
         state_dict = torch.load(save_path, weights_only=True)
         network.load_state_dict(state_dict)
-        print("\tModel loaded successfully")
+        print(f"\tModel loaded successfully {episode}")
     else:
         print(f"\tNo saved model found {save_path}")
     return network
@@ -95,3 +102,45 @@ def load_tensor(tensor:torch.tensor, save_dir:str, name:str, episode:int):
     else:
         print(f"\tNo saved model found {save_path}")
     return tensor
+
+def load_episode(save_dir:str, name:str):
+    folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+    numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+    episode = max(numbered_folders)
+    return episode
+
+def load_numpy(numpy:np.array, save_dir:str, name:str, episode:int):
+    if episode is None:
+        folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+        numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+        episode = max(numbered_folders)
+        
+    _save_dir = save_dir + "/" + str(episode) + "/"
+    save_path = os.path.join(_save_dir, f"{str(name)}.npy")
+    if os.path.exists(save_path):
+        numpy = np.load(save_path)
+        print("\tNumpy loaded successfull")
+    else:
+        print(f"\tNo saved numpy found {save_path}")
+    return np.array(numpy)
+
+def visualize_attention(attn_weights, title="Attention Map"):
+    """
+    어텐션 가중치를 시각화하는 함수
+    Args:
+        attn_weights: [batch_size, num_heads, seq_length, seq_length] 크기의 텐서
+    """
+    attn_weights = attn_weights.squeeze(0).detach().cpu().numpy()  # 배치 제거
+    num_heads = attn_weights.shape[0]
+
+    fig, axs = plt.subplots(1, num_heads, figsize=(15, 5))
+    axs = np.atleast_1d(axs)  # axs를 항상 배열로 처리
+
+    fig.suptitle(title)
+
+    for i in range(num_heads):
+        axs[i].imshow(attn_weights[i], cmap='viridis')
+        axs[i].set_title(f"Head {i+1}")
+        axs[i].axis('off')
+
+    plt.show()
