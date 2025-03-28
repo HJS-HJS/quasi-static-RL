@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PYTHON_FILE="train_test_server2.py"  # 실행할 Python 파일 이름
+PYTHON_FILE="train_test_server3.py"  # 실행할 Python 파일 이름
 MAX_RETRIES=10                 # 최대 재실행 횟수
 RETRY_COUNT=0                 # 현재 재시도 횟수
 
