@@ -51,7 +51,7 @@ MEMORY_CAPACITY = 60000
 BATCH_SIZE = 256
 EPOCH_SIZE = 1
 # Other
-visulaize_step = 5
+visulaize_step = 50
 MAX_STEP = 150         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
