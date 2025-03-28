@@ -537,13 +537,13 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr1.to(device=torch.device('cpu')),
+                state_curr1.to(device=device),
                 state_curr2.T,
                 torch.tensor([mode], device=device).unsqueeze(0),
                 torch.tensor(action, device=device).unsqueeze(0),
                 torch.tensor([reward], device=device).unsqueeze(0),
                 torch.tensor([_done], device=device).unsqueeze(0),
-                state_next1.to(device=torch.device('cpu')),
+                state_next1.to(device=device),
                 state_next2.T,
                 torch.tensor([mode_next], device=device).unsqueeze(0),
             )
@@ -553,13 +553,13 @@ if TRAIN:
                 if ((step - mode_change_step + 1) % (MAX_STEP // 4) == 0) or (done and (reward >= 1.0)):
                     _state, _reward, _action = sim.env.augment_init_data(state_next1.squeeze().cpu().numpy())
                     memory.push(
-                        torch.tensor(_state, device=torch.device('cpu')).unsqueeze(0),
+                        torch.tensor(_state, device=device).unsqueeze(0),
                         state_next2.T,
                         torch.tensor([0], device=device).unsqueeze(0),
                         torch.tensor(_action, device=device).unsqueeze(0),
                         torch.tensor([_reward], device=device).unsqueeze(0),
                         torch.tensor([0], device=device).unsqueeze(0),
-                        state_next1.to(device=torch.device('cpu')),
+                        state_next1.to(device=device),
                         state_next2.T,
                         torch.tensor([1], device=device).unsqueeze(0),
                     )
