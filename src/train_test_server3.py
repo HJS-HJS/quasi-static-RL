@@ -172,42 +172,54 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 1024),
+            nn.Linear(n_state, 256),
             nn.ReLU(),
-            nn.Linear(1024, 1024),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024, num_heads=8)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512, num_heads=4)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 * 2, 1024),
+                nn.Linear(256 * 3, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(512, n_action),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
             ),
             nn.Sequential(
-                nn.Linear(1024 * 2, 1024),
+                nn.Linear(256 * 3, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(512, n_action),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
             ),
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 * 2, 1024),
+                nn.Linear(256 * 3, 512),
                 nn.ReLU(),
-                nn.Linear(1024, n_action),
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
                 nn.Softplus(),
             ),
             nn.Sequential(
-                nn.Linear(1024 * 2, 1024),
+                nn.Linear(256 * 3, 512),
                 nn.ReLU(),
-                nn.Linear(1024, n_action),
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
                 nn.Softplus(),
             ),
         ])
@@ -285,43 +297,47 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Linear(n_state, 1024),
+            nn.Linear(n_state, 256),
             nn.ReLU(),
-            nn.Linear(1024, 1024),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(n_action, 1024),
+                nn.Linear(n_action, 256),
                 nn.ReLU(),
-                nn.Linear(1024, 1024),
+                nn.Linear(256, 256),
                 nn.ReLU(),
             ),
             nn.Sequential(
-                nn.Linear(n_action, 1024),
+                nn.Linear(n_action, 256),
                 nn.ReLU(),
-                nn.Linear(1024, 1024),
+                nn.Linear(256, 256),
                 nn.ReLU(),
             ),
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024, num_heads=8)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512, num_heads=4)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 * 3, 1024),
+                nn.Linear(256 * 4, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 1024),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(1024, 1),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 1),
             ),
             nn.Sequential(
-                nn.Linear(1024 * 3, 1024),
+                nn.Linear(256 * 4, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 1024),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(1024, 1),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 1),
             ),
         ])
 

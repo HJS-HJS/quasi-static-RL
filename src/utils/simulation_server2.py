@@ -86,8 +86,8 @@ class Simulation():
             # gripper_movement = GripperMotion.MOVE_FORWARD,
             frame_rate = self.fps,
             frame_skip = self.action_skip,
-            # grid = False,
-            grid = True,
+            grid = False,
+            # grid = True,
             recording_enabled = record,
             recording_path = save_dir,
             show_closest_point = False,
@@ -334,7 +334,7 @@ class Simulation():
         if state_prev is None: return 0
 
         ## Reward
-        reward = -0.5
+        reward = -1.5
 
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
@@ -371,7 +371,7 @@ class Simulation():
             if len(_delta_slider_dist) > 0:
                 reward += -1.0
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.4
+                reward += -0.6
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
@@ -391,7 +391,7 @@ class Simulation():
         danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
 
         danger_list_num1 = danger_list1
-        reward += -10.0 * (np.sum(danger_list_num1) / 5)
+        reward += -10.0 * (np.sum(danger_list_num1) / 3)
 
         return reward
     
