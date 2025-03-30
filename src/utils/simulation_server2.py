@@ -86,8 +86,8 @@ class Simulation():
             # gripper_movement = GripperMotion.MOVE_FORWARD,
             frame_rate = self.fps,
             frame_skip = self.action_skip,
-            grid = False,
-            # grid = True,
+            # grid = False,
+            grid = True,
             recording_enabled = record,
             recording_path = save_dir,
             show_closest_point = False,
@@ -334,7 +334,7 @@ class Simulation():
         if state_prev is None: return 0
 
         ## Reward
-        reward = -1.5
+        reward = -0.5
 
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
@@ -356,42 +356,42 @@ class Simulation():
         pusher_distance_diff = (pusher_distance_prev - pusher_distance_curr) * self.fps / self.action_skip
 
         # velocity
-        reward += 15.0 * pusher_distance_diff
+        reward += 10.0 * pusher_distance_diff - 1.0
         # distance
-        reward += 1.3 * (0.4 - pusher_distance_curr) / 0.4
+        reward += 1.3 * (0.4 - pusher_distance_curr) / 0.4 - 0.5
 
         ## Slider
         if len(state_prev.slider_state) != len(state_curr.slider_state):
-            reward += -1.0
+            reward += -2.0
         else:
             slider_distance = np.linalg.norm((np.array(state_prev.slider_state)[:,:2] - np.array(state_curr.slider_state)[:,:2]), axis=1)
             slider_distance_diff = slider_distance * self.fps / self.action_skip
 
             _delta_slider_dist = np.where(np.abs(slider_distance_diff[1:]) - 1e-5 > 0)[0]
             if len(_delta_slider_dist) > 0:
-                reward += -1.0
+                reward += -0.5
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.6
+                reward += -0.5
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
                 print("SIMULATION BREAK")
                 reward = -1000
 
-        # Check danger
-        slider_distance = (
-            (np.abs(np.array(state_prev.slider_state)[:,:2]) - np.abs(np.array(state_curr.slider_state)[:,:2]))
-            ).reshape(-1)
-        danger_list = np.array(state_curr.slider_state)[:,:2]
+            # Check danger
+            slider_distance = (
+                (np.abs(np.array(state_prev.slider_state)[:,:2]) - np.abs(np.array(state_curr.slider_state)[:,:2]))
+                ).reshape(-1)
+            danger_list = np.array(state_curr.slider_state)[:,:2]
 
-        danger_list1 = ((np.abs(danger_list) + self.min_r * 2.0 - self.table_limit) / (self.min_r * 2.0)).reshape(-1)
-        danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
+            danger_list1 = ((np.abs(danger_list) + self.min_r * 2.0 - self.table_limit) / (self.min_r * 2.0)).reshape(-1)
+            danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
-        danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-        danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
+            danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
+            danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
 
-        danger_list_num1 = danger_list1
-        reward += -10.0 * (np.sum(danger_list_num1) / 3)
+            danger_list_num1 = danger_list1
+            reward += -10.0 * (np.sum(danger_list_num1) / 3)
 
         return reward
     

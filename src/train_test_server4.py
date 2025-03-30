@@ -40,7 +40,7 @@ loss = 0.
 FRAME = 16
 # Learning Parameters
 LEARNING_RATE   = 0.0004 # optimizer
-DISCOUNT_FACTOR = 0.90   # gamma
+DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 TARGET_ENTROPY  = -0.0
