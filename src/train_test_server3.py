@@ -126,12 +126,13 @@ def mask_attention_output(attn_output, mask):
 import torch.nn.functional as F
 
 class SelfAttentionObstacle(nn.Module):
-    def __init__(self, obs_dim=10, hidden_dim=1024, num_heads=8):
+    def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
+        hidden_dim = int(hidden_dim / 2)
         self.linear_in = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim / 2),
+            nn.Linear(obs_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim / 2, hidden_dim / 2),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
         )
 
@@ -148,7 +149,7 @@ class SelfAttentionObstacle(nn.Module):
         obs_sum = obs_sum_masked.sum(dim=1) / valid_counts  # [batch, dim]
         obs_max = obs_max_masked.max(dim=1)  # [batch, dim]
 
-        return torch.cat([obs_sum, obs_max], dim=1)
+        return torch.cat([obs_sum, obs_max[0]], dim=1)
 
 
 
@@ -162,7 +163,7 @@ class ActorNetwork(nn.Module):
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256, num_heads=4)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
@@ -272,7 +273,7 @@ class QNetwork(nn.Module):
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256, num_heads=4)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
