@@ -40,14 +40,14 @@ loss = 0.
 FRAME = 16
 # Learning Parameters
 LEARNING_RATE   = 0.0004 # optimizer
-DISCOUNT_FACTOR = 0.99   # gamma
+DISCOUNT_FACTOR = 0.93   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
-TARGET_ENTROPY  = -0.0
-ALPHA           = 0.5
-LEARNING_RATE_ALPHA= 0.005
+TARGET_ENTROPY  = -2.0
+ALPHA           = 1.0
+LEARNING_RATE_ALPHA= 0.0001
 # Memory
-MEMORY_CAPACITY = 60000
+MEMORY_CAPACITY = 150000
 BATCH_SIZE = 256
 EPOCH_SIZE = 1
 # Other
@@ -128,43 +128,27 @@ import torch.nn.functional as F
 class SelfAttentionObstacle(nn.Module):
     def __init__(self, obs_dim=10, hidden_dim=1024, num_heads=8):
         super(SelfAttentionObstacle, self).__init__()
-        self.linear_in = nn.Linear(obs_dim, hidden_dim)
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, batch_first=True)
-        self.norm1 = nn.LayerNorm(hidden_dim)
-        self.ffn = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+        self.linear_in = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim / 2),
             nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim / 2, hidden_dim / 2),
+            nn.ReLU(),
         )
-        self.norm2 = nn.LayerNorm(hidden_dim)
-        self.linear_out = nn.Linear(hidden_dim, hidden_dim)
 
     def forward(self, obs, mask=None):
         obs = obs.permute(0, 2, 1)  # [batch, k, 10]
-        obs_embed = self.linear_in(obs)  # [batch, k, hidden_dim]
+        obs = self.linear_in(obs)
 
-        # Self-Attention 적용
-        attn_output, attn_weights = self.attention(obs_embed, obs_embed, obs_embed, key_padding_mask=mask)
-        if show_mu:
-            print("Attention Weights Mean:\t", torch.mean(attn_weights, dim=1).squeeze().cpu().numpy())
+        valid_mask = (obs.abs().sum(dim=2) != 0)  # 실제 장애물 여부
+        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1e-6)  # [batch, 1]
 
-        attn_output = self.norm1(attn_output + obs_embed)
-        attn_output = self.ffn(attn_output)
-        attn_output = self.norm2(attn_output + obs_embed)
+        # 패딩은 무시하고 평균 계산
+        obs_sum_masked = obs.masked_fill(~valid_mask.unsqueeze(-1), 0.0)  # 패딩된 부분을 0으로 만듦
+        obs_max_masked = obs.masked_fill(~valid_mask.unsqueeze(-1), -1e9)  # 패딩된 부분을 -1e9로 만듦
+        obs_sum = obs_sum_masked.sum(dim=1) / valid_counts  # [batch, dim]
+        obs_max = obs_max_masked.max(dim=1)  # [batch, dim]
 
-        # 패딩된 부분을 0으로 설정
-        attn_output = mask_attention_output(attn_output, mask)
-
-        # **Masked Weighted Sum**
-        valid_mask = ~mask  # [batch, k] (True: 실제 장애물, False: 패딩)
-        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1)  # 실제 장애물 개수
-        attn_weights_masked = attn_weights * valid_mask.unsqueeze(1)  # [batch, 1, k]
-        attn_weights_mean = attn_weights_masked.sum(dim=2, keepdim=True) / valid_counts.unsqueeze(1)  # [batch, 1, k]
-
-        # 🚀 **Masked Weighted Sum 적용 (k 축 제거)**
-        obs_weighted_sum = torch.sum(attn_weights_mean * attn_output, dim=1)  # [batch, hidden_dim]
-
-        return obs_weighted_sum
+        return torch.cat([obs_sum, obs_max], dim=1)
 
 
 
@@ -172,56 +156,33 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 256),
+            nn.Linear(n_state, 128),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(128, 128),
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512, num_heads=4)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256, num_heads=4)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(256 * 3, 512),
+                nn.Linear(128 * 3, 256),
                 nn.ReLU(),
-                nn.Linear(512, 256),
+                nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
-            ),
-            nn.Sequential(
-                nn.Linear(256 * 3, 512),
-                nn.ReLU(),
-                nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
-            ),
+                nn.Linear(256, n_action),
+            ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(256 * 3, 512),
+                nn.Linear(128 * 3, 256),
                 nn.ReLU(),
-                nn.Linear(512, 256),
+                nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(256, n_action),
                 nn.Softplus(),
-            ),
-            nn.Sequential(
-                nn.Linear(256 * 3, 512),
-                nn.ReLU(),
-                nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
-                nn.Softplus(),
-            ),
+            ) for _ in range(2)
         ])
 
     def forward(self, state, obs, mode):
@@ -272,7 +233,7 @@ class ActorNetwork(nn.Module):
             mu = torch.where(mode.bool(), self.mu[1](_state), self.mu[0](_state))
             std = torch.where(mode.bool(), self.std[1](_state), self.std[0](_state))
                 
-        return mu, torch.clamp(std, min=0.01, max=2.0)
+        return mu, torch.clamp(std, min=0.05, max=2.0)
     
 
     def sample_action(self, state, obs, mode):
@@ -297,48 +258,30 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Linear(n_state, 256),
+            nn.Linear(n_state, 128),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(128, 128),
             nn.ReLU(),
         )
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(n_action, 256),
+                nn.Linear(n_state, 128),
                 nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-            ),
-            nn.Sequential(
-                nn.Linear(n_action, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-            ),
+                nn.Linear(128, 128),
+            ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512, num_heads=4)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256, num_heads=4)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(256 * 4, 512),
+                nn.Linear(128 * 4, 256),
                 nn.ReLU(),
-                nn.Linear(512, 256),
+                nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 1),
-            ),
-            nn.Sequential(
-                nn.Linear(256 * 4, 512),
-                nn.ReLU(),
-                nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 1),
-            ),
+                nn.Linear(256, 1),
+            ) for _ in range(2)
         ])
 
     def forward(self, state, obs, action, mode):
@@ -480,10 +423,10 @@ if TRAIN:
             if episode % 2 == 0:
                 _num = 2
             else:
-                _num = 3
+                _num = 4
         elif (episode // 4) % 4 == 1:
             if episode % 2 == 0:
-                _num = 4
+                _num = 6
             else:
                 _num = 10
         
@@ -541,13 +484,13 @@ if TRAIN:
 
             # 4. Save data
             memory.push(
-                state_curr1.to(device=device),
+                state_curr1.to(device=torch.device('cpu')),
                 state_curr2.T,
                 torch.tensor([mode], device=device).unsqueeze(0),
                 torch.tensor(action, device=device).unsqueeze(0),
                 torch.tensor([reward], device=device).unsqueeze(0),
                 torch.tensor([_done], device=device).unsqueeze(0),
-                state_next1.to(device=device),
+                state_next1.to(device=torch.device('cpu')),
                 state_next2.T,
                 torch.tensor([mode_next], device=device).unsqueeze(0),
             )
@@ -557,13 +500,13 @@ if TRAIN:
                 if ((step - mode_change_step + 1) % (MAX_STEP // 4) == 0) or (done and (reward >= 1.0)):
                     _state, _reward, _action = sim.env.augment_init_data(state_next1.squeeze().cpu().numpy())
                     memory.push(
-                        torch.tensor(_state, device=device).unsqueeze(0),
+                        torch.tensor(_state, device=torch.device('cpu')).unsqueeze(0),
                         state_next2.T,
                         torch.tensor([0], device=device).unsqueeze(0),
                         torch.tensor(_action, device=device).unsqueeze(0),
                         torch.tensor([_reward], device=device).unsqueeze(0),
                         torch.tensor([0], device=device).unsqueeze(0),
-                        state_next1.to(device=device),
+                        state_next1.to(device=torch.device('cpu')),
                         state_next2.T,
                         torch.tensor([1], device=device).unsqueeze(0),
                     )
