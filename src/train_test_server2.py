@@ -267,7 +267,7 @@ class QNetwork(nn.Module):
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(n_state, 128),
+                nn.Linear(n_action, 128),
                 nn.ReLU(),
                 nn.Linear(128, 128),
             ) for _ in range(2)
