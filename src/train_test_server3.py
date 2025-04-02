@@ -40,7 +40,7 @@ loss = 0.
 FRAME = 16
 # Learning Parameters
 LEARNING_RATE   = 0.0004 # optimizer
-DISCOUNT_FACTOR = 0.95   # gamma
+DISCOUNT_FACTOR = 0.93   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 TARGET_ENTROPY  = -2.0
@@ -129,7 +129,13 @@ class SelfAttentionObstacle(nn.Module):
     def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
         hidden_dim = int(hidden_dim / 2)
-        self.linear_in = nn.Sequential(
+        self.mean_layer = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+        )
+        self.max_layer = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
@@ -138,18 +144,21 @@ class SelfAttentionObstacle(nn.Module):
 
     def forward(self, obs, mask=None):
         obs = obs.permute(0, 2, 1)  # [batch, k, 10]
-        obs = self.linear_in(obs)
 
         valid_mask = (obs.abs().sum(dim=2) != 0)  # 실제 장애물 여부
         valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1e-6)  # [batch, 1]
 
-        # 패딩은 무시하고 평균 계산
-        obs_sum_masked = obs.masked_fill(~valid_mask.unsqueeze(-1), 0.0)  # 패딩된 부분을 0으로 만듦
-        obs_max_masked = obs.masked_fill(~valid_mask.unsqueeze(-1), -1e9)  # 패딩된 부분을 -1e9로 만듦
-        obs_sum = obs_sum_masked.sum(dim=1) / valid_counts  # [batch, dim]
-        obs_max = obs_max_masked.max(dim=1)  # [batch, dim]
+        mean_obs = self.mean_layer(obs)
+        max_obs = self.max_layer(obs)
 
-        return torch.cat([obs_sum, obs_max[0]], dim=1)
+        # 패딩은 무시하고 평균 계산
+        mean_obs_masked = mean_obs.masked_fill(~valid_mask.unsqueeze(-1), 0.0)  # 패딩된 부분을 0으로 만듦
+        mean_obs = mean_obs_masked.sum(dim=1) / valid_counts  # [batch, dim]
+
+        max_obs_masked = max_obs.masked_fill(~valid_mask.unsqueeze(-1), -1e9)  # 패딩된 부분을 -1e9으로 만듦
+        max_obs = max_obs_masked.max(dim=1)[0] / valid_counts  # [batch, dim]
+
+        return torch.cat([mean_obs, max_obs], dim=1)
 
 
 
@@ -157,9 +166,7 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(n_state, 256),
             nn.ReLU(),
         )
 
@@ -167,21 +174,21 @@ class ActorNetwork(nn.Module):
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(128 * 3, 256),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(256, n_action),
+                nn.Linear(128, n_action),
             ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(128 * 3, 256),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(256, n_action),
+                nn.Linear(128, n_action),
                 nn.Softplus(),
             ) for _ in range(2)
         ])
@@ -192,38 +199,17 @@ class ActorNetwork(nn.Module):
         mode_onehot.scatter_(1, mode, 1.0)
 
         # State branch
-        # _state = torch.where(mode.bool(), self.layer[0](state), self.layer[0](state))  # [batch, 1024]
         _state = self.layer(state)  # [batch, 1024]
-
-        if show_mu: 
-            print("mu:\t", self.mu[0][0].weight.abs().mean().item())
-            print("mu:\t", self.mu[1][0].weight.abs().mean().item())
 
         # Mask
         # Mask if obstacle not exist in each k
         valid_mask = (obs.abs().sum(dim=1) != 0)  # [batch, k]
         mask = (obs.abs().sum(dim=1) == 0)
-        valid_mask_expanded = valid_mask.unsqueeze(1)  # [batch, 1, k]
         # Mask if obstacle not existd in every k
         valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1)  # [batch, 1]
-        no_valid = valid_counts.eq(0)  # [batch, 1]
 
         # Obs self attention
         _obs = self.self_attention(obs, mask)  # [batch, 1024]
-        # obs_feat_masked = torch.where(valid_mask_expanded, _obs, torch.full_like(_obs, -1e9))
-
-        # # # max
-        # obs_max = torch.max(obs_feat_masked, 2)[0]
-        # # # mean
-        # valid_counts = valid_counts.expand(-1, obs_feat_masked.size(1))  # 차원 맞춤
-        # obs_mean = (obs_feat_masked * valid_mask_expanded).sum(dim=2) / valid_counts  # [batch, 1024]
-
-        # obs_output_max  = torch.where(no_valid, torch.zeros_like(obs_max), obs_max)
-        # obs_output_mean= torch.where(no_valid, torch.zeros_like(obs_mean), obs_mean)
-    
-        # obs_output_max, obs_output_mean = obs_output_max + obs_output_mean * 0.1, obs_output_mean + obs_output_max * 0.1
-
-        # _state = torch.cat([_state, obs_output_max * 2.0, obs_output_mean * 2.0], dim=1)
         _state = torch.cat([_state, _obs], dim=1)
 
         if mode.numel() == 1:
@@ -261,15 +247,12 @@ class QNetwork(nn.Module):
         self.state_layer = nn.Sequential(
             nn.Linear(n_state, 128),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
         )
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(n_action, 128),
                 nn.ReLU(),
-                nn.Linear(128, 128),
             ) for _ in range(2)
         ])
 
@@ -277,11 +260,11 @@ class QNetwork(nn.Module):
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(128 * 4, 256),
+                nn.Linear(256 * 2, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
+                nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(256, 1),
+                nn.Linear(128, 1),
             ) for _ in range(2)
         ])
 
@@ -292,34 +275,17 @@ class QNetwork(nn.Module):
 
         # Run
         _state = self.state_layer(state)  # [batch, 1024]
-        # _state = torch.where(mode.bool(), self.state_layer[0](state), self.state_layer[0](state))  # [batch, 1024]
         _action = torch.where(mode.bool(), self.action_layer[0](action), self.action_layer[1](action))  # [batch, 1024]
 
         # Mask
         # Mask if obstacle not exist in each k
         valid_mask = (obs.abs().sum(dim=1) != 0)  # [batch, k]
         mask = (obs.abs().sum(dim=1) == 0)
-        valid_mask_expanded = valid_mask.unsqueeze(1)  # [batch, 1, k]
         # Mask if obstacle not existd in every k
         valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1)  # [batch, 1]
-        no_valid = valid_counts.eq(0)  # [batch, 1]
 
         # Obs self attention
         _obs = self.self_attention(obs, mask)  # [batch, 1024]
-        # obs_feat_masked = torch.where(valid_mask_expanded, _obs, torch.full_like(_obs, -1e9))
-
-        # # max
-        # obs_max = torch.max(obs_feat_masked, 2)[0]
-        # # mean
-        # valid_counts = valid_counts.expand(-1, obs_feat_masked.size(1))  # 차원 맞춤
-        # obs_mean = (obs_feat_masked * valid_mask_expanded).sum(dim=2) / valid_counts  # [batch, 1024]
-
-        # obs_output_max  = torch.where(no_valid, torch.zeros_like(obs_max), obs_max)
-        # obs_output_mean= torch.where(no_valid, torch.zeros_like(obs_mean), obs_mean)
-
-        # obs_output_max, obs_output_mean = obs_output_max + obs_output_mean * 0.1, obs_output_mean + obs_output_max * 0.1
-
-        # fusion_input = torch.cat([_state, obs_output_max * 2, obs_output_mean * 2, _action], dim=1)  # [batch, 768]
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         return torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))

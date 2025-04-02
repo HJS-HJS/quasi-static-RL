@@ -81,13 +81,13 @@ class Simulation():
             window_height = self.display_size[1],
             scale = 1 / self.unit,
             headless = not visualize,
-            gripper_movement = GripperMotion.MOVE_TO_TARGET,
-            # gripper_movement = GripperMotion.MOVE_XY,
+            # gripper_movement = GripperMotion.MOVE_TO_TARGET,
+            gripper_movement = GripperMotion.MOVE_XY,
             # gripper_movement = GripperMotion.MOVE_FORWARD,
             frame_rate = self.fps,
             frame_skip = self.action_skip,
-            grid = False,
-            # grid = True,
+            # grid = False,
+            grid = True,
             recording_enabled = record,
             recording_path = save_dir,
             show_closest_point = False,
@@ -280,10 +280,10 @@ class Simulation():
         if state_prev is None: return 0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            reward += 15.0
+            reward += 10.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -20.0
+            return -10.0
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
@@ -298,7 +298,7 @@ class Simulation():
             pusher_distance = (state_curr.pusher_state[:2] - state_curr.slider_state[0][:2])
         pusher_distance = np.linalg.norm(pusher_distance)
 
-        reward += 6.0 * (1 - pusher_distance / 0.2)
+        reward += 3.0 * (1 - pusher_distance / 0.2)
 
         return reward
         
@@ -334,18 +334,18 @@ class Simulation():
         if state_prev is None: return 0
 
         ## Reward
-        reward = -0.5
+        reward = 0.0
 
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -20.0
+            return -5.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            return 15.0
+            return 5.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -20.0
+            return -5.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
@@ -356,9 +356,9 @@ class Simulation():
         pusher_distance_diff = (pusher_distance_prev - pusher_distance_curr) * self.fps / self.action_skip
 
         # velocity
-        reward += 15.0 * pusher_distance_diff
+        reward += 5.0 * pusher_distance_diff - 0.5
         # distance
-        reward += 1.3 * (0.4 - pusher_distance_curr) / 0.4
+        reward += 0.75 * (1 - pusher_distance_curr / 0.4) - 0.5
 
         ## Slider
         if len(state_prev.slider_state) != len(state_curr.slider_state):
@@ -369,9 +369,9 @@ class Simulation():
 
             _delta_slider_dist = np.where(np.abs(slider_distance_diff[1:]) - 1e-5 > 0)[0]
             if len(_delta_slider_dist) > 0:
-                reward += -1.0
+                reward += -0.5
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.6
+                reward += -0.5
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
@@ -384,11 +384,11 @@ class Simulation():
             ).reshape(-1)
         danger_list = np.array(state_curr.slider_state)[:,:2]
 
-        danger_list1 = ((np.abs(danger_list) + self.min_r * 2.0 - self.table_limit) / (self.min_r * 2.0)).reshape(-1)
+        danger_list1 = ((np.abs(danger_list) + self.min_r * 2.5 - self.table_limit) / (self.min_r * 2.0)).reshape(-1)
         danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
         danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-        danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
+        # danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
 
         danger_list_num1 = danger_list1
         reward += -10.0 * (np.sum(danger_list_num1) / 3)
