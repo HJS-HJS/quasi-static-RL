@@ -14,7 +14,7 @@ import time
 so_file_path = os.path.abspath("../cpp")
 sys.path.append(so_file_path)
 
-from utils.simulation_server4 import DishSimulation
+from utils.simulation_server3 import DishSimulation
 
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
