@@ -265,7 +265,7 @@ class QNetwork(nn.Module):
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 * 2, 512),
+                nn.Linear(512 * 4, 512),
                 nn.ReLU(),
                 nn.Linear(512, 512),
                 nn.ReLU(),
