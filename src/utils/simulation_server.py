@@ -355,8 +355,6 @@ class Simulation():
             pusher_distance_curr = np.linalg.norm(state_curr.pusher_state[:2] - state_curr.slider_state[0][:2])
         pusher_distance_diff = (pusher_distance_prev - pusher_distance_curr) * self.fps / self.action_skip
 
-        # velocity
-        reward += 5.0 * pusher_distance_diff - 0.5
         # distance
         reward += 0.75 * (1 - pusher_distance_curr / 0.4) - 0.5
 

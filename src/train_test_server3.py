@@ -31,7 +31,7 @@ show_mu = False
 # HER = True
 HER = False
 
-# FILE_NAME = "6200"
+# FILE_NAME = "6950"
 FILE_NAME = None
 
 loss = 0.
@@ -40,19 +40,19 @@ loss = 0.
 FRAME = 16
 # Learning Parameters
 LEARNING_RATE   = 0.0004 # optimizer
-DISCOUNT_FACTOR = 0.93   # gamma
+DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 TARGET_ENTROPY  = -2.0
 ALPHA           = 1.0
-LEARNING_RATE_ALPHA= 0.0001
+LEARNING_RATE_ALPHA= 0.00001
 # Memory
 MEMORY_CAPACITY = 150000
 BATCH_SIZE = 256
 EPOCH_SIZE = 1
 # Other
 visulaize_step = 50
-MAX_STEP = 150         # maximun available step per episode
+MAX_STEP = 250         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 SAVE_DIR = current_directory + "/../model/test_server3"
@@ -81,6 +81,7 @@ N_INPUTS2   = 19 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
+success_rates = []
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
@@ -166,29 +167,31 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 256),
+            nn.Linear(n_state, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512, 256),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(256, 128),
+                nn.Linear(512, 512),
                 nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(512, n_action),
             ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512, 256),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(256, 128),
+                nn.Linear(512, 512),
                 nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(512, n_action),
                 nn.Softplus(),
             ) for _ in range(2)
         ])
@@ -245,26 +248,30 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Linear(n_state, 128),
+            nn.Linear(n_state, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
             nn.ReLU(),
         )
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(n_action, 128),
+                nn.Linear(n_action, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
                 nn.ReLU(),
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(256 * 2, 256),
+                nn.Linear(512 * 3, 512),
                 nn.ReLU(),
-                nn.Linear(256, 128),
+                nn.Linear(512, 512),
                 nn.ReLU(),
-                nn.Linear(128, 1),
+                nn.Linear(512, 1),
             ) for _ in range(2)
         ])
 
@@ -325,6 +332,7 @@ try:
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
     alpha.requires_grad = True
     total_steps = load_numpy(total_steps, SAVE_DIR, "total_steps", FILE_NAME)
+    success_rates  = load_numpy(success_rates, SAVE_DIR, "total_success_ratessteps", FILE_NAME)
     episode_start = load_episode(SAVE_DIR, FILE_NAME) + 1
 except:
     episode_start = 1
@@ -512,13 +520,15 @@ if TRAIN:
                         ["actor", "q1", "q2", "target_q1", "target_q2"]
                         , episode
                         )
+            success_rate = 100 * len(np.where(np.array(step_done_set) != MAX_STEP)[0]) / visulaize_step
+            print("#{}: {}\t{:.2f}".format(episode, np.mean(step_done_set).astype(int), success_rate))
+
             save_tensor(alpha, SAVE_DIR, "alpha", episode)
             total_steps = np.hstack((total_steps, np.mean(step_done_set)))
+            success_rates = np.hstack((success_rates, success_rate * 2))
             save_numpy(total_steps, SAVE_DIR, "total_steps", episode)
-
-            success = len(np.where(np.array(step_done_set) != MAX_STEP)[0])
-            print("#{}: {}\t{:.2f}".format(episode, np.mean(step_done_set).astype(int), 100 * success / visulaize_step))
-            live_plot(total_steps, visulaize_step)
+            save_numpy(success_rates, SAVE_DIR, "success_rates", episode)
+            live_plots([total_steps, success_rates], visulaize_step)
             step_done_set = []
 
     # Turn the sim off
@@ -528,7 +538,7 @@ if TRAIN:
                 , "save"
                 )
     # Show the results
-    show_result(total_steps, visulaize_step, SAVE_DIR)
+    show_result([total_steps, success_rates], visulaize_step, SAVE_DIR)
 
 else:
     del sim
@@ -554,11 +564,11 @@ else:
         # state_curr, _, _,_ = sim.reset(mode="continous", slider_num=8)
         while True:
             if idx % 3 == 0:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=4)
+                state_curr, _, _, mode = sim.reset(mode=None, slider_num=15)
             elif idx % 3 == 1:
                 state_curr, _, _, mode = sim.reset(mode=None, slider_num=6)
             else:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=2)
+                state_curr, _, _, mode = sim.reset(mode=None, slider_num=4)
             idx += 1
             state_curr1, state_curr2 = state_curr
             obs_num = np.sum(np.any(state_curr2, axis=1))
