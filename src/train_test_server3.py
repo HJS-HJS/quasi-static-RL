@@ -332,7 +332,7 @@ try:
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
     alpha.requires_grad = True
     total_steps = load_numpy(total_steps, SAVE_DIR, "total_steps", FILE_NAME)
-    success_rates  = load_numpy(success_rates, SAVE_DIR, "total_success_ratessteps", FILE_NAME)
+    success_rates  = load_numpy(success_rates, SAVE_DIR, "success_rates", FILE_NAME)
     episode_start = load_episode(SAVE_DIR, FILE_NAME) + 1
 except:
     episode_start = 1
