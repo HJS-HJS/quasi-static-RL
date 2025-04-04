@@ -12,8 +12,20 @@ def plot(total_steps, step):
     plt.plot(np.linspace(1, len(total_steps) + 1, len(total_steps), endpoint=False) * step, total_steps, c='red')
     plt.grid(True)
 
+def plots(total_steps_set, step):
+    plt.figure(1)
+    plt.xlabel('Episode')
+    plt.ylabel('Duration')
+    for total_steps in total_steps_set:
+        plt.plot(np.linspace(1, len(total_steps) + 1, len(total_steps), endpoint=False) * step, total_steps, c='red')
+    plt.grid(True)
+
 def live_plot(total_steps, step):
     plot(total_steps, step)
+    plt.pause(0.0001)
+
+def live_plots(total_steps_set, step):
+    plots(total_steps_set, step)
     plt.pause(0.0001)
 
 def show_result(total_steps, step, save_dir:None):
@@ -22,6 +34,16 @@ def show_result(total_steps, step, save_dir:None):
     print('step  min:', np.min(total_steps))
     print('step  max:', np.max(total_steps))
     plot(total_steps, step)
+    if save_dir is not None:
+        plt.savefig(save_dir + "/results.png")
+    plt.show()
+
+def show_results(total_steps_set, step, save_dir:None):
+    print('step mean:', np.mean(total_steps_set[0]))
+    print('step  std:', np.std(total_steps_set[0]))
+    print('step  min:', np.min(total_steps_set[0]))
+    print('step  max:', np.max(total_steps_set[0]))
+    plots(total_steps_set, step)
     if save_dir is not None:
         plt.savefig(save_dir + "/results.png")
     plt.show()
