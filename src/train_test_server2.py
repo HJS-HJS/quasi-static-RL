@@ -78,7 +78,7 @@ N_INPUTS2   = 19 #9
 # N_INPUTS2   = 19
 # N_INPUTS1   = 21
 # N_INPUTS2   = 17
-N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
+N_OUTPUT    = sim.env.action_space.shape[0] - 2   # 5
 
 total_steps = []
 success_rates = []
@@ -442,6 +442,7 @@ if TRAIN:
                 rand = (2 * np.random.random(action.size) - 1) * (step / MAX_STEP)
                 rand[2:] *= 2
                 action = np.clip(action + rand, -0.9999, 0.9999).astype(np.float32)
+                action = np.hstack((action, 1.0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done, mode_next = sim.env.step(action, mode)
@@ -476,21 +477,6 @@ if TRAIN:
                 torch.tensor([mode_next], device=device).unsqueeze(0),
             )
 
-            # HER
-            if HER and mode_next != 0:
-                if ((step - mode_change_step + 1) % (MAX_STEP // 4) == 0) or (done and (reward >= 1.0)):
-                    _state, _reward, _action = sim.env.augment_init_data(state_next1.squeeze().cpu().numpy())
-                    memory.push(
-                        torch.tensor(_state, device=torch.device('cpu')).unsqueeze(0),
-                        state_next2.T,
-                        torch.tensor([0], device=device).unsqueeze(0),
-                        torch.tensor(_action, device=device).unsqueeze(0),
-                        torch.tensor([_reward], device=device).unsqueeze(0),
-                        torch.tensor([0], device=device).unsqueeze(0),
-                        state_next1.to(device=torch.device('cpu')),
-                        state_next2.T,
-                        torch.tensor([1], device=device).unsqueeze(0),
-                    )
 
             # 5. Update state                
             if mode_next != 0:
