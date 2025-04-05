@@ -442,10 +442,10 @@ if TRAIN:
                 rand = (2 * np.random.random(action.size) - 1) * (step / MAX_STEP)
                 rand[2:] *= 2
                 action = np.clip(action + rand, -0.9999, 0.9999).astype(np.float32)
-                action = np.hstack((action, 1.0))
+            _action = np.hstack((action, 1.0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
-            state_next, reward, done, mode_next = sim.env.step(action, mode)
+            state_next, reward, done, mode_next = sim.env.step(_action, mode)
 
             # Check simulation break
             if reward < -500:
