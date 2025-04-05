@@ -396,20 +396,27 @@ def optimize_model(batch):
 step_done_set = []
 if TRAIN:
     for episode in range(episode_start, EPISODES + 1):
+        limit = 0
         if (episode // 4) % 4 == 2:
-            _num = 7
+            _num = 15
+            limit = 6
         elif (episode // 4) % 4 == 3:
-            _num = 8
+            _num = 15
+            limit = 8
         elif (episode // 4) % 4 == 0:
             if episode % 2 == 0:
                 _num = 2
+                limit = 0
             else:
                 _num = 5
+                limit = 4
         elif (episode // 4) % 4 == 1:
             if episode % 2 == 0:
                 _num = 6
+                limit = 5
             else:
-                _num = 7
+                _num = 10
+                limit = 6
         
         obs_num = 0
 
@@ -418,10 +425,8 @@ if TRAIN:
             state_curr1, state_curr2 = state_curr
             valid_counts = np.sum(np.abs(state_curr2), axis = 1)  # [batch]
             obs_num = len(valid_counts) - len(np.where(valid_counts == 0)[0])
-            if (episode // 4) % 4 == 3:
-                if obs_num < 8: obs_num = 0
-            elif (episode // 4) % 4 == 2:
-                if obs_num < 5: obs_num = 0
+            if obs_num < limit:
+                obs_num = 0
 
 
         state_curr1 = torch.tensor(state_curr1, dtype=torch.float32, device=device).unsqueeze(0)
