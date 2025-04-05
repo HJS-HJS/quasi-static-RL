@@ -31,7 +31,7 @@ show_mu = False
 # HER = True
 HER = False
 
-# FILE_NAME = "6950"
+# FILE_NAME = "6200"
 FILE_NAME = None
 
 loss = 0.
@@ -40,10 +40,10 @@ loss = 0.
 FRAME = 16
 # Learning Parameters
 LEARNING_RATE   = 0.0004 # optimizer
-DISCOUNT_FACTOR = 0.99   # gamma
+DISCOUNT_FACTOR = 0.95   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
-TARGET_ENTROPY  = -2.0
+TARGET_ENTROPY  = -4.0
 ALPHA           = 1.0
 LEARNING_RATE_ALPHA= 0.00001
 # Memory
@@ -167,31 +167,37 @@ class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
         self.layer = nn.Sequential(
-            nn.Linear(n_state, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(n_state, 256),
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
+                nn.Linear(1024 + 256, 1024),
+                nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(512, n_action),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
             ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
+                nn.Linear(1024 + 256, 1024),
+                nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(512, n_action),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_action),
                 nn.Softplus(),
             ) for _ in range(2)
         ])
@@ -248,30 +254,30 @@ class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(QNetwork, self).__init__()
         self.state_layer = nn.Sequential(
-            nn.Linear(n_state, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(n_state, 256),
             nn.ReLU(),
         )
 
         self.action_layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(n_action, 512),
-                nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(n_action, 256),
                 nn.ReLU(),
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 * 3, 512),
+                nn.Linear(1024 + 512, 1024),
                 nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(512, 1),
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 1),
             ) for _ in range(2)
         ])
 
@@ -391,19 +397,19 @@ step_done_set = []
 if TRAIN:
     for episode in range(episode_start, EPISODES + 1):
         if (episode // 4) % 4 == 2:
-            _num = 15
+            _num = 7
         elif (episode // 4) % 4 == 3:
-            _num = 15
+            _num = 8
         elif (episode // 4) % 4 == 0:
             if episode % 2 == 0:
                 _num = 2
             else:
-                _num = 4
+                _num = 5
         elif (episode // 4) % 4 == 1:
             if episode % 2 == 0:
                 _num = 6
             else:
-                _num = 10
+                _num = 7
         
         obs_num = 0
 
@@ -564,11 +570,11 @@ else:
         # state_curr, _, _,_ = sim.reset(mode="continous", slider_num=8)
         while True:
             if idx % 3 == 0:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=15)
+                state_curr, _, _, mode = sim.reset(mode=None, slider_num=9)
             elif idx % 3 == 1:
                 state_curr, _, _, mode = sim.reset(mode=None, slider_num=6)
             else:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=4)
+                state_curr, _, _, mode = sim.reset(mode=None, slider_num=7)
             idx += 1
             state_curr1, state_curr2 = state_curr
             obs_num = np.sum(np.any(state_curr2, axis=1))

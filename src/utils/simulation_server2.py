@@ -339,13 +339,13 @@ class Simulation():
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -5.0
+            return -10.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
             return 5.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -5.0
+            return -10.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
@@ -369,7 +369,7 @@ class Simulation():
             if len(_delta_slider_dist) > 0:
                 reward += -1.0
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.5
+                reward += -1.0
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
