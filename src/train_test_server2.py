@@ -78,7 +78,7 @@ N_INPUTS2   = 19 #9
 # N_INPUTS2   = 19
 # N_INPUTS1   = 21
 # N_INPUTS2   = 17
-N_OUTPUT    = sim.env.action_space.shape[0] - 2   # 5
+N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
 success_rates = []
@@ -443,17 +443,17 @@ if TRAIN:
                 action, logprob = actor_net.sample_action(state_curr1, state_curr2.unsqueeze(0), torch.tensor([mode], device=device).unsqueeze(0))
                 action = action.squeeze().cpu().numpy()
                 
+                
             if mode == 0 and np.random.random(1) > 0.95:
-                action = (np.random.choice([-1.0, 0.0, 1.0], size=3) * np.random.uniform(0.8, 1.0, size=3)).astype(np.float32)
+                action = (np.random.choice([-1.0, 0.0, 1.0], size=4) * np.random.uniform(0.8, 1.0, size=4)).astype(np.float32)
 
             if step > 4 and mode == 0:
                 rand = (2 * np.random.random(action.size) - 1) * (step / MAX_STEP)
                 rand[2:] *= 2
                 action = np.clip(action + rand, -0.9999, 0.9999).astype(np.float32)
-            _action = np.hstack((action, 1.0))
 
             # 2. Run simulation 1 step (Execute action and observe reward)
-            state_next, reward, done, mode_next = sim.env.step(_action, mode)
+            state_next, reward, done, mode_next = sim.env.step(action, mode)
 
             # Check simulation break
             if reward < -500:
