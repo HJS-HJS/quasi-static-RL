@@ -415,8 +415,8 @@ if TRAIN:
                 _num = 6
                 limit = 5
             else:
-                _num = 10
-                limit = 6
+                _num = 15
+                limit = 7
         
         obs_num = 0
 
@@ -442,6 +442,9 @@ if TRAIN:
             with torch.no_grad():
                 action, logprob = actor_net.sample_action(state_curr1, state_curr2.unsqueeze(0), torch.tensor([mode], device=device).unsqueeze(0))
                 action = action.squeeze().cpu().numpy()
+                
+            if mode == 0 and np.random.random(1) > 0.95:
+                action = (np.random.choice([-1.0, 0.0, 1.0], size=3) * np.random.uniform(0.8, 1.0, size=3)).astype(np.float32)
 
             if step > 4 and mode == 0:
                 rand = (2 * np.random.random(action.size) - 1) * (step / MAX_STEP)

@@ -400,7 +400,7 @@ class Simulation():
         slider_state = self.state_prev.slider_state
         return {"table_size":table_size, "slider_state":slider_state}
 
-    def generate_spawn_points(self, num_points, center_bias=0.7):
+    def generate_spawn_points(self, num_points, center_bias=0.955):
         points = []
         x_range = ((-self.table_limit[0] + self.min_r * 1.3) * 0.9, (self.table_limit[0] - self.min_r * 1.3) * 0.9)
         y_range = ((-self.table_limit[1] + self.min_r * 1.3) * 0.9, (self.table_limit[1] - self.min_r * 1.3) * 0.9)
