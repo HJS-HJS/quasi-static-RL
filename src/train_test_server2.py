@@ -8,10 +8,9 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
-import copy
 import time
 
-so_file_path = os.path.abspath("../cpp")
+so_file_path = os.path.abspath("../cpp/15")
 sys.path.append(so_file_path)
 
 from utils.simulation_server import DishSimulation
@@ -19,50 +18,58 @@ from utils.simulation_server import DishSimulation
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
 
+# Discount Factor from 0.99 to 0.95
+
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
 use_data        = False
 
-# show_mu = not TRAIN
-# show_mu = True
-show_mu = False
-
-# HER = True
-HER = False
-
-# FILE_NAME = "6200"
 FILE_NAME = None
 
 loss = 0.
 
 # Learning frame
-FRAME = 16
+FRAME = 8
+
 # Learning Parameters
-LEARNING_RATE   = 0.0004 # optimizer
+LEARNING_RATE   = 0.0006 # optimizer
 DISCOUNT_FACTOR = 0.95   # gamma
-TARGET_UPDATE_TAU= 0.01
+TARGET_UPDATE_TAU= 0.025
 EPISODES        = 15000   # total episode
-TARGET_ENTROPY  = -4.0
-ALPHA           = 1.0
-LEARNING_RATE_ALPHA= 0.00001
+ALPHA           = 0.5
+LEARNING_RATE_ALPHA= 0.0001
 # Memory
 MEMORY_CAPACITY = 150000
 BATCH_SIZE = 256
 EPOCH_SIZE = 1
 # Other
 visulaize_step = 50
-MAX_STEP = 250         # maximun available step per episode
+MAX_STEP = 200         # maximun available step per episode
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
-SAVE_DIR = current_directory + "/../model/test_server2"
+SAVE_DIR = current_directory + "/../model/test_server1"
 episode_start = 1
+
+# curriculum
+curriculum_dictionary = np.array([
+    # obs, action_step, target_entropy
+    [2, 2, -1],
+    [4, 3, -1],
+    [5, 4, -1],
+    [6, 4, -1],
+    [8, 4, -2],
+    [9, 4, -4],
+])  
+curriculum = 0
 
 sim = DishSimulation(
     visualize=None,
     state="linear",
     action_skip=FRAME,
     )
+sim.env.spawn_bias = 0.95
+
 device = torch.device('cpu')
 if torch.cuda.is_available():
     print("CUDA is available")
@@ -72,12 +79,6 @@ if torch.cuda.is_available():
 # Policy Parameters
 N_INPUTS1   = 21 #9
 N_INPUTS2   = 19 #9
-# N_INPUTS1   = 17 #10
-# N_INPUTS2   = 11 #10
-# N_INPUTS1   = 22
-# N_INPUTS2   = 19
-# N_INPUTS1   = 21
-# N_INPUTS2   = 17
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
@@ -85,32 +86,6 @@ success_rates = []
 
 # Memory
 memory = SACDataset(MEMORY_CAPACITY)
-
-if use_data:
-    for action, state, mode, (state_next, reward, done, mode_next) in sim.replay_video():\
-
-        state_curr1, state_curr2 = state
-        state_curr1 = torch.tensor(state_curr1, dtype=torch.float32, device=device).unsqueeze(0)
-        state_curr2 = torch.tensor(state_curr2.T, dtype=torch.float32, device=device)
-        state_next1, state_next2 = state_next
-        state_next1 = torch.tensor(state_next1, dtype=torch.float32, device=device).unsqueeze(0)
-        state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
-
-        if mode < 0:      mode = 0
-        else:             mode = 1
-
-        memory.push(
-            state_curr1.to(device=torch.device('cpu')),
-            state_next2.T,
-            torch.tensor([mode], device=device).unsqueeze(0),
-            torch.tensor(action, device=device).unsqueeze(0),
-            torch.tensor([reward], device=device).unsqueeze(0),
-            torch.tensor([done], device=device).unsqueeze(0),
-            state_next1.to(device=torch.device('cpu')),
-            state_next2.T,
-            torch.tensor([mode_next], device=device).unsqueeze(0),
-        )
-    print("Data Loaded #", len(memory))
 
 def mask_attention_output(attn_output, mask):
     """
@@ -143,7 +118,7 @@ class SelfAttentionObstacle(nn.Module):
             nn.ReLU(),
         )
 
-    def forward(self, obs, mask=None):
+    def forward(self, obs):
         obs = obs.permute(0, 2, 1)  # [batch, k, 10]
 
         valid_mask = (obs.abs().sum(dim=2) != 0)  # 실제 장애물 여부
@@ -161,8 +136,6 @@ class SelfAttentionObstacle(nn.Module):
 
         return torch.cat([mean_obs, max_obs], dim=1)
 
-
-
 class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
         super(ActorNetwork, self).__init__()
@@ -171,72 +144,75 @@ class ActorNetwork(nn.Module):
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 + 256, 1024),
+                nn.Linear(256 + 256, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(256, n_action),
             ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 + 256, 1024),
+                nn.Linear(256 + 256, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(256, n_action),
                 nn.Softplus(),
             ) for _ in range(2)
         ])
 
     def forward(self, state, obs, mode):
+        relative_pose = state[:,13:15] - state[:,2:4]
+        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
+
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
-
         # State branch
         _state = self.layer(state)  # [batch, 1024]
 
-        # Mask
-        # Mask if obstacle not exist in each k
-        valid_mask = (obs.abs().sum(dim=1) != 0)  # [batch, k]
-        mask = (obs.abs().sum(dim=1) == 0)
-        # Mask if obstacle not existd in every k
-        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1)  # [batch, 1]
-
         # Obs self attention
-        _obs = self.self_attention(obs, mask)  # [batch, 1024]
+        _obs = self.self_attention(obs)  # [batch, 1024]
         _state = torch.cat([_state, _obs], dim=1)
 
         if mode.numel() == 1:
             mode_idx = mode.item()
             mu = self.mu[mode_idx](_state)
             std = self.std[mode_idx](_state)
+
         else:
             mu = torch.where(mode.bool(), self.mu[1](_state), self.mu[0](_state))
             std = torch.where(mode.bool(), self.std[1](_state), self.std[0](_state))
-                
+
         return mu, torch.clamp(std, min=0.05, max=2.0)
     
 
     def sample_action(self, state, obs, mode):
         mu, std = self.forward(state, obs, mode)
 
+        _cut = curriculum_dictionary[curriculum][1]
+        use_idx = {
+            2: [0, 1],             # x, y
+            3: [0, 1, 3],          # x, y, width (theta는 0으로)
+            4: [0, 1, 2, 3],       # x, y, theta, width
+        }[_cut]
+        
         # Sample continous action
-        distribution = torch.distributions.Normal(mu, std)
+        if mu.dim() == 2:
+            distribution = torch.distributions.Normal(mu[:, use_idx], std[:, use_idx])
+        else:
+            distribution = torch.distributions.Normal(mu[:, :, use_idx], std[:, :, use_idx])
+
         u = distribution.rsample()
         log_prob_continue = distribution.log_prob(u)
 
@@ -244,11 +220,38 @@ class ActorNetwork(nn.Module):
         action_countinue = torch.tanh(u)
         log_prob_continue -= torch.log(1 - torch.tanh(u).pow(2) + 1e-6)
 
-        if len(mu) == 1 and show_mu:
-            print(f"Mu0: {mu[0].tolist()}, Std: {std[0].tolist()}")
-            print(f"Alpha: {alpha.exp().item()}")
+        # Curriculum
+        if mu.dim() == 2:
+            if _cut == 2:
+                theta = torch.zeros_like(action_countinue[:, :1])  # fixed theta
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 1.0).to(action_countinue.device)
+                action_countinue = torch.cat([action_countinue, theta, width], dim=1)
+            
+            elif _cut == 3:
+                xy = action_countinue[:, :2]
+                width = action_countinue[:, 2:3]
+                theta = torch.zeros_like(width)
+                action_countinue = torch.cat([xy, theta, width], dim=1)
 
-        return action_countinue, log_prob_continue.mean(dim = 1)
+            else:
+                pass
+        else:
+            if _cut == 2:
+                theta = torch.zeros_like(action_countinue[:, :, :1])  # fixed theta
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 1.0).to(action_countinue.device)
+                action_countinue = torch.cat([action_countinue, theta, width], dim=1)
+            
+            elif _cut == 3:
+                xy = action_countinue[:, :2]
+                width = action_countinue[:, 2:3]
+                theta = torch.zeros_like(width)
+                action_countinue = torch.cat([xy, theta, width], dim=1)
+
+            else:
+                pass
+
+        return action_countinue, log_prob_continue.sum(dim = 1)
+
 
 class QNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
@@ -265,23 +268,24 @@ class QNetwork(nn.Module):
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(1024 + 512, 1024),
+                nn.Linear(512 + 256, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 1),
+                nn.Linear(256, 1),
             ) for _ in range(2)
         ])
 
     def forward(self, state, obs, action, mode):
+        relative_pose = state[:,13:15] - state[:,2:4]
+        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
+
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -290,18 +294,12 @@ class QNetwork(nn.Module):
         _state = self.state_layer(state)  # [batch, 1024]
         _action = torch.where(mode.bool(), self.action_layer[0](action), self.action_layer[1](action))  # [batch, 1024]
 
-        # Mask
-        # Mask if obstacle not exist in each k
-        valid_mask = (obs.abs().sum(dim=1) != 0)  # [batch, k]
-        mask = (obs.abs().sum(dim=1) == 0)
-        # Mask if obstacle not existd in every k
-        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1)  # [batch, 1]
-
         # Obs self attention
-        _obs = self.self_attention(obs, mask)  # [batch, 1024]
+        _obs = self.self_attention(obs)  # [batch, 1024]
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
-        return torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
+        _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
+        return _q
             
     def train(self, target, state, obs, action, mode, optimizer):
         criterion = torch.nn.SmoothL1Loss()
@@ -309,7 +307,6 @@ class QNetwork(nn.Module):
         optimizer.zero_grad()
         loss.mean().backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
-        # loss.sum().backward()
         optimizer.step()
 
     def update(self, target_net:nn.Module):
@@ -375,17 +372,13 @@ def optimize_model(batch):
     actor_loss = (alpha.exp() * logprob_batch - min_q) # GPT
     actor_optimizer.zero_grad()
     actor_loss.mean().backward()
-    # actor_loss.sum().backward()
-    # if True:
-        # print(f"Actor Loss: {actor_loss.sum().item()}, Alpha: {alpha.exp().item()}")
     global loss
     loss = actor_loss.mean().item()
     torch.nn.utils.clip_grad_norm_(actor_net.parameters(), max_norm=0.5)
 
     actor_optimizer.step()
 
-    alpha_loss = (alpha.exp() * (-logprob_batch.detach() - TARGET_ENTROPY)).mean()
-    # alpha_loss = (alpha.exp() * (-logprob_batch.detach() - TARGET_ENTROPY)).sum()
+    alpha_loss = (alpha.exp() * (-logprob_batch.detach() - curriculum_dictionary[curriculum][2].astype(float))).mean()
     alpha_optimizer.zero_grad()
     alpha_loss.backward()
     alpha_optimizer.step()
@@ -394,29 +387,17 @@ def optimize_model(batch):
     q2_net.update(target_q2_net)
 
 step_done_set = []
+prev_curriculum_episode = episode_start
 if TRAIN:
     for episode in range(episode_start, EPISODES + 1):
         limit = 0
-        if (episode // 4) % 4 == 2:
-            _num = 15
-            limit = 6
-        elif (episode // 4) % 4 == 3:
-            _num = 15
-            limit = 8
-        elif (episode // 4) % 4 == 0:
-            if episode % 2 == 0:
-                _num = 2
-                limit = 0
-            else:
-                _num = 5
-                limit = 4
+        if (episode // 4) % 4 == 2:   _num = curriculum_dictionary[curriculum][0]
+        elif (episode // 4) % 4 == 3: _num = curriculum_dictionary[curriculum][0]
+        elif (episode // 4) % 4 == 0: _num = curriculum_dictionary[curriculum][0] 
         elif (episode // 4) % 4 == 1:
-            if episode % 2 == 0:
-                _num = 6
-                limit = 5
-            else:
-                _num = 15
-                limit = 7
+            if episode % 2 == 0: _num = max(2, curriculum_dictionary[curriculum][0] // 2)
+            else:                _num = max(2, curriculum_dictionary[curriculum][0] // 4)
+        limit = _num - 1
         
         obs_num = 0
 
@@ -427,7 +408,6 @@ if TRAIN:
             obs_num = len(valid_counts) - len(np.where(valid_counts == 0)[0])
             if obs_num < limit:
                 obs_num = 0
-
 
         state_curr1 = torch.tensor(state_curr1, dtype=torch.float32, device=device).unsqueeze(0)
         state_curr2 = torch.tensor(state_curr2.T, dtype=torch.float32, device=device)
@@ -442,18 +422,17 @@ if TRAIN:
             with torch.no_grad():
                 action, logprob = actor_net.sample_action(state_curr1, state_curr2.unsqueeze(0), torch.tensor([mode], device=device).unsqueeze(0))
                 action = action.squeeze().cpu().numpy()
-                
-                
-            if mode == 0 and np.random.random(1) > 0.95:
-                action = (np.random.choice([-1.0, 0.0, 1.0], size=4) * np.random.uniform(0.8, 1.0, size=4)).astype(np.float32)
 
             if step > 4 and mode == 0:
                 rand = (2 * np.random.random(action.size) - 1) * (step / MAX_STEP)
-                rand[2:] *= 2
-                action = np.clip(action + rand, -0.9999, 0.9999).astype(np.float32)
+                rand[:2] /= 2
+                action = np.clip(action + rand, -0.95, 0.95).astype(np.float32)
 
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done, mode_next = sim.env.step(action, mode)
+
+            state_next1, state_next2 = state_next
+            total_reward += reward
 
             # Check simulation break
             if reward < -500:
@@ -462,12 +441,10 @@ if TRAIN:
 
             if done != 0: _done = 1
             else: _done = 0
-            state_next1, state_next2 = state_next
             if mode_next == 0:
                 mode_change_step = step
                 _done = 1
-            total_reward += reward
-
+                
             # 3. Update state
             state_next1 = torch.tensor(state_next1, dtype=torch.float32, device=device).unsqueeze(0)
             state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
@@ -485,7 +462,6 @@ if TRAIN:
                 torch.tensor([mode_next], device=device).unsqueeze(0),
             )
 
-
             # 5. Update state                
             if mode_next != 0:
                 state_curr1 = state_next1
@@ -501,27 +477,18 @@ if TRAIN:
         
         ## Episode is finished
         print("\t#", episode, "\t", step, "\t{:.2f}\t{:.2f}s\te {:.4f}".format(total_reward, time.time() - start_time, alpha.exp().tolist()), "\tmode changed: ", mode_change_step, "\tloss: ", loss, "\tobs: ", obs_num)
-        if (reward < 3): step = MAX_STEP
+        if (reward < 1): step = MAX_STEP
         
         # Save episode reward
         step_done_set.append(step)
-        # Visualize
-        # if (len(total_steps) != 0) and (step < min(total_steps)):
-        #     save_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
-        #                  , SAVE_DIR, 
-        #                  ["actor", "q1", "q2", "target_q1", "target_q2"]
-        #                  , episode
-        #                  )
-        #     save_tensor(alpha, SAVE_DIR, "alpha", episode)
         if episode % visulaize_step == 0:
-            # if (len(total_steps) != 0) and (np.mean(step_done_set) < min(total_steps)):
             save_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
                         , SAVE_DIR, 
                         ["actor", "q1", "q2", "target_q1", "target_q2"]
                         , episode
                         )
             success_rate = 100 * len(np.where(np.array(step_done_set) != MAX_STEP)[0]) / visulaize_step
-            print("#{}: {}\t{:.2f}".format(episode, np.mean(step_done_set).astype(int), success_rate))
+            print("#{}: {}\t{:.1f}%\t{}".format(episode, np.mean(step_done_set).astype(int), success_rate, curriculum))
 
             save_tensor(alpha, SAVE_DIR, "alpha", episode)
             total_steps = np.hstack((total_steps, np.mean(step_done_set)))
@@ -530,7 +497,15 @@ if TRAIN:
             save_numpy(success_rates, SAVE_DIR, "success_rates", episode)
             live_plots([total_steps, success_rates], visulaize_step)
             step_done_set = []
-
+        
+            if (success_rate > 50 and episode >= prev_curriculum_episode + 1500) or (success_rate > 80 and episode >= prev_curriculum_episode + 500) or (success_rate > 90 and episode >= prev_curriculum_episode + 200):
+                if curriculum != len(curriculum_dictionary) - 1:
+                    curriculum = min(curriculum + 1, len(curriculum_dictionary) - 1)
+                    prev_curriculum_episode = episode
+                    alpha = torch.tensor(np.log(ALPHA))
+                    alpha.requires_grad = True
+                    alpha_optimizer   = torch.optim.AdamW([alpha], lr=LEARNING_RATE_ALPHA)
+                
     # Turn the sim off
     save_models([actor_net, q1_net, q2_net, target_q1_net, target_q2_net]
                 , SAVE_DIR, 
@@ -560,20 +535,22 @@ else:
     idx = 0
     while True: 
         mode_change_step = 0
-        # 0. Reset environment
-        # state_curr, _, _,_ = sim.reset(mode="continous", slider_num=8)
         while True:
             if idx % 3 == 0:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=9)
+                _num = curriculum_dictionary[curriculum][0]
             elif idx % 3 == 1:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=6)
+                _num = curriculum_dictionary[curriculum][0]
             else:
-                state_curr, _, _, mode = sim.reset(mode=None, slider_num=7)
-            idx += 1
+                _num = curriculum_dictionary[curriculum][0]
+            state_curr, _, _, mode = sim.reset(mode=None, slider_num=_num)
+            limit = _num - 2
             state_curr1, state_curr2 = state_curr
             obs_num = np.sum(np.any(state_curr2, axis=1))
 
-            if np.sum(dish[obs_num,0]) <= 150:
+            if obs_num < limit: continue
+            idx += 1
+            obs_num -= 1
+            if np.sum(dish[obs_num,0]) < 200:
                 break
 
 
@@ -606,33 +583,33 @@ else:
                 break
             if done: break
 
-        # Running one episode
-        for step in range(1, MAX_STEP + 1):
-            # 1. Get action from policy network
-            with torch.no_grad():
-                action, logprob = actor_net.sample_action(state_curr1, state_curr2.unsqueeze(0), torch.tensor([mode], device=device).unsqueeze(0))
+        if not done: 
+            # Running one episode
+            for step in range(1, MAX_STEP + 1):
+                # 1. Get action from policy network
+                with torch.no_grad():
+                    action, logprob = actor_net.sample_action(state_curr1, state_curr2.unsqueeze(0), torch.tensor([mode], device=device).unsqueeze(0))
 
-            # if mode == 0:
-            #     print(action.squeeze().cpu().numpy())
+                # 2. Run simulation 1 step (Execute action and observe reward)
+                state_next, reward, done, mode = sim.env.step(action.squeeze().cpu().numpy(), mode)
 
-            # 2. Run simulation 1 step (Execute action and observe reward)
-            state_next, reward, done, mode = sim.env.step(action.squeeze().cpu().numpy(), mode)
-
-            if mode == 0:
-                mode_change_step = step
-            else :
-                state_next1, state_next2 = state_next
-                state_next1 = torch.tensor(state_next1, dtype=torch.float32, device=device).unsqueeze(0)
-                state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
-                state_curr1 = state_next1
-                state_curr2 = state_next2
-            print("reward", reward)
-            if done: break
+                if mode == 0:
+                    mode_change_step = step
+                else :
+                    state_next1, state_next2 = state_next
+                    state_next1 = torch.tensor(state_next1, dtype=torch.float32, device=device).unsqueeze(0)
+                    state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
+                    state_curr1 = state_next1
+                    state_curr2 = state_next2
+                print("reward", reward)
+                # print("action", action.squeeze().cpu().numpy())
+                print("q1", q1_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                print("q2", q2_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                if done: break
 
         dish[obs_num, 0] += 1
-        if reward > 3: dish[obs_num, 1] += 1
-        else:          dish[obs_num, 2] += 1
-
+        if reward > 0.5: dish[obs_num, 1] += 1
+        else:            dish[obs_num, 2] += 1
 
         print("\tEpisode finished")
         print("\t\tStep #{}\tMode changed #{}".format(step, mode_change_step))

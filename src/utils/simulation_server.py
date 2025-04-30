@@ -7,7 +7,7 @@ import random
 import copy
 from typing import List
 
-so_file_path = os.path.abspath("../../cpp")
+so_file_path = os.path.abspath("../../cpp/15")
 sys.path.append(so_file_path)
 
 from quasi_static_push import SimulationViewer, SimulationResult, SimulationDoneReason, GripperMotion, Player
@@ -34,7 +34,11 @@ class Simulation():
 
         ## Set parameters
         # Set pixel unit
-        self.unit = self.config["display"]["unit"] #[m/pixel]
+        # self.unit = self.config["display"]["unit"] #[m/pixel]
+        self.unit = 0.001953125
+
+        self.table_range = np.array([0.5, 1.25])
+        self.table_pixel_range = (self.table_range / self.unit).astype(int)
 
         # Set pusher
         _pusher_type = self.config["pusher"]["pusher_type"]
@@ -55,6 +59,7 @@ class Simulation():
         # Set simulation param
         self.fps = self.config["simulator"]["fps"]
         self.action_skip = action_skip
+        self.spawn_bias = 0.75
 
         self.pusher_input = [
             self.config["pusher"]["pusher_num"], self.config["pusher"]["pusher_angle"], _pusher_type["type"], 
@@ -81,8 +86,8 @@ class Simulation():
             window_height = self.display_size[1],
             scale = 1 / self.unit,
             headless = not visualize,
-            gripper_movement = GripperMotion.MOVE_TO_TARGET,
-            # gripper_movement = GripperMotion.MOVE_XY,
+            # gripper_movement = GripperMotion.MOVE_TO_TARGET,
+            gripper_movement = GripperMotion.MOVE_XY,
             # gripper_movement = GripperMotion.MOVE_FORWARD,
             frame_rate = self.fps,
             frame_skip = self.action_skip,
@@ -101,8 +106,8 @@ class Simulation():
                         
             # Table setting
             if table_size is None:
-                _table_limit_width  = random.randint(int(self.display_size[0] * 0.3), int(self.display_size[0] * 0.6))
-                _table_limit_height = random.randint(int(self.display_size[1] * 0.3), int(self.display_size[1] * 0.6))
+                _table_limit_width  = random.randint(self.table_pixel_range[0], self.table_pixel_range[1])
+                _table_limit_height = random.randint(self.table_pixel_range[0], self.table_pixel_range[1])
                 _table_limit = np.array([_table_limit_width, _table_limit_height])
                 table_size = _table_limit * self.unit
             else:
@@ -170,7 +175,6 @@ class Simulation():
             
             action = np.clip(action, self.action_limit[:4, 0], self.action_limit[:4, 1])
             action *= self.unit_speed[:4]
-            
             state_curr = self.simulator.run(np.hstack((action, 1)))
 
         time.sleep(0.01)
@@ -183,7 +187,10 @@ class Simulation():
     def get_results(self, state_prev: SimulationResult = None, state_curr: SimulationResult = None, mode:int = 0):
         # State
         # width = self.display_size * self.unit / 2
-        _table = ((self.table_limit - 0.25) / 0.25) * 2 - 1
+        table_range_range = (self.table_range[1] - self.table_range[0]) / 2
+        
+        _table = ((self.table_limit - self.table_range[0] / 2) / table_range_range) * 2 - 1
+
         _pusher = copy.deepcopy(state_curr.pusher_state)
         if len(state_curr.slider_state) == 0:
             _sliders = copy.deepcopy(np.array(state_prev.slider_state))
@@ -191,11 +198,9 @@ class Simulation():
             _sliders = copy.deepcopy(np.array(state_curr.slider_state))
 
         _pusher_width = copy.deepcopy(_pusher[3])
-        _pusher[3] = (_pusher[3] - self.pusher_width_limit[1]) / (self.pusher_width_limit[0] - self.pusher_width_limit[1]) * 2 - 1
 
         _sliders_theta_sin = np.sin(_sliders[:,2])
         _sliders_theta_cos = np.cos(_sliders[:,2])
-        _sliders[:,3:5] = (_sliders[:,3:5] - self.min_r) / (self.max_r - self.min_r) * 2 - 1
 
         fingers = np.array([
             [_pusher[0] +  np.cos(_pusher[2] + np.pi / 6) * _pusher_width,
@@ -206,53 +211,67 @@ class Simulation():
              _pusher[1] +  np.sin(_pusher[2] + np.pi / 6 + np.pi * 4 / 3) * _pusher_width],
         ])
 
+        fingers /= self.table_limit
+        np.random.shuffle(fingers)
+
         if mode <= 0:
             _pusher = np.zeros_like(_pusher)
             fingers = np.zeros_like(fingers)
+
+        _slider_edge = np.array([
+            [_sliders[0][0] +  _sliders[0][3] * _sliders_theta_cos[0],
+             _sliders[0][1] +  _sliders[0][3] * _sliders_theta_sin[0]],
+            [_sliders[0][0] + -_sliders[0][4] * _sliders_theta_sin[0],
+             _sliders[0][1] +  _sliders[0][4] * _sliders_theta_cos[0]],
+            [_sliders[0][0] + -_sliders[0][3] * _sliders_theta_cos[0],
+             _sliders[0][1] + -_sliders[0][3] * _sliders_theta_sin[0]],
+            [_sliders[0][0] +  _sliders[0][4] * _sliders_theta_sin[0],
+             _sliders[0][1] + -_sliders[0][4] * _sliders_theta_cos[0]],
+        ])
+        _slider_edge /= self.table_limit
+        np.random.shuffle(_slider_edge)
+
+        relative_dist = (_sliders[0][:2] - _pusher[:2])
+        relative_dist = np.sign(relative_dist) * (np.power(1 - np.abs(relative_dist), 3)) # 3
+
         _state1 = np.hstack((
                 _table,
-                _sliders[0][:2] * 2,
-                [(_sliders[0][0] +  _sliders[0][3] * _sliders_theta_cos[0]) * 2,
-                 (_sliders[0][1] +  _sliders[0][3] * _sliders_theta_sin[0]) * 2,
-                 (_sliders[0][0] + -_sliders[0][4] * _sliders_theta_sin[0]) * 2,
-                 (_sliders[0][1] +  _sliders[0][4] * _sliders_theta_cos[0]) * 2,
-                 (_sliders[0][0] + -_sliders[0][3] * _sliders_theta_cos[0]) * 2,
-                 (_sliders[0][1] + -_sliders[0][3] * _sliders_theta_sin[0]) * 2,
-                 (_sliders[0][0] +  _sliders[0][4] * _sliders_theta_sin[0]) * 2,
-                 (_sliders[0][1] + -_sliders[0][4] * _sliders_theta_cos[0]) * 2,
-                ],
+                _sliders[0][:2] / self.table_limit,
+                _slider_edge.reshape(-1),
                 (len(_sliders) / 5) - 1,
-                _pusher[:2] * 2,
-                fingers.reshape(-1) * 2,
+                relative_dist,
+                fingers.reshape(-1),
                 ))
 
-        _state2 = np.zeros(((len(_sliders)), 19))
+        _state2 = np.zeros(((len(_sliders)), 21))
 
         for idx in range(0, len(_sliders)):
-            # if mode <= 0:
-            #     relative_pusher_target = np.zeros_like(fingers)
-            # else:
-            #     relative_pusher_target = _sliders[idx][:2] - fingers
-            
-            # relative_slider_target = (_sliders[idx][:2] - _sliders[0][:2])
 
             if idx == 0: _target = -1
             else:        _target = 1
 
+            _slider_edge = np.array([
+                [(_sliders[idx][0] +  _sliders[idx][3] * _sliders_theta_cos[idx]),
+                 (_sliders[idx][1] +  _sliders[idx][3] * _sliders_theta_sin[idx])],
+                [(_sliders[idx][0] + -_sliders[idx][4] * _sliders_theta_sin[idx]),
+                 (_sliders[idx][1] +  _sliders[idx][4] * _sliders_theta_cos[idx])],
+                [(_sliders[idx][0] + -_sliders[idx][3] * _sliders_theta_cos[idx]),
+                 (_sliders[idx][1] + -_sliders[idx][3] * _sliders_theta_sin[idx])],
+                [(_sliders[idx][0] +  _sliders[idx][4] * _sliders_theta_sin[idx]),
+                 (_sliders[idx][1] + -_sliders[idx][4] * _sliders_theta_cos[idx])],
+            ])
+            _slider_edge /= self.table_limit
+            np.random.shuffle(_slider_edge)
+            edge = (self.table_limit - np.abs(_sliders[idx][:2]))
+            edge = np.sign(_sliders[idx][:2]) * np.power(1 - edge, 3)
+
             _state2[idx] = np.concatenate([
                 _table,
                 [_target],
-                _sliders[idx][:2] * 2,
-                [(_sliders[idx][0] +  _sliders[idx][3] * _sliders_theta_cos[idx]) * 2,
-                 (_sliders[idx][1] +  _sliders[idx][3] * _sliders_theta_sin[idx]) * 2,
-                 (_sliders[idx][0] + -_sliders[idx][4] * _sliders_theta_sin[idx]) * 2,
-                 (_sliders[idx][1] +  _sliders[idx][4] * _sliders_theta_cos[idx]) * 2,
-                 (_sliders[idx][0] + -_sliders[idx][3] * _sliders_theta_cos[idx]) * 2,
-                 (_sliders[idx][1] + -_sliders[idx][3] * _sliders_theta_sin[idx]) * 2,
-                 (_sliders[idx][0] +  _sliders[idx][4] * _sliders_theta_sin[idx]) * 2,
-                 (_sliders[idx][1] + -_sliders[idx][4] * _sliders_theta_cos[idx]) * 2,
-                ],
-                fingers.reshape(-1) * 2,
+                _sliders[idx][:2] / self.table_limit,
+                _slider_edge.reshape(-1),
+                edge,
+                fingers.reshape(-1),
             ])
 
         state = _state1, _state2
@@ -280,16 +299,14 @@ class Simulation():
         if state_prev is None: return 0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            reward += 10.0
+            return 1.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -10.0
+            return -1.0
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
             return -1.0
-        else:
-            reward += 1.0
 
         ## Pusher distance from target
         if len(state_curr.slider_state) == 0:
@@ -298,7 +315,7 @@ class Simulation():
             pusher_distance = (state_curr.pusher_state[:2] - state_curr.slider_state[0][:2])
         pusher_distance = np.linalg.norm(pusher_distance)
 
-        reward += 3.0 * (1 - pusher_distance / 0.2)
+        reward = np.clip(1.0 * (1 - pusher_distance / 0.3), -1.0, 1.0)
 
         return reward
         
@@ -339,13 +356,13 @@ class Simulation():
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -5.0
+            return -2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            return 5.0
+            return 2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -5.0
+            return -2.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
@@ -353,12 +370,10 @@ class Simulation():
             pusher_distance_curr = pusher_distance_prev
         else:
             pusher_distance_curr = np.linalg.norm(state_curr.pusher_state[:2] - state_curr.slider_state[0][:2])
-        pusher_distance_diff = (pusher_distance_prev - pusher_distance_curr) * self.fps / self.action_skip
 
-        # velocity
-        reward += 3.0 * pusher_distance_diff - 0.3
         # distance
-        reward += 0.75 * (1 - pusher_distance_curr / 0.4) - 0.5
+        reward += -0.1
+        reward += max(0.5 * (1 - pusher_distance_curr / 0.2) - 0.5, -2.0)
 
         ## Slider
         if len(state_prev.slider_state) != len(state_curr.slider_state):
@@ -367,40 +382,35 @@ class Simulation():
             slider_distance = np.linalg.norm((np.array(state_prev.slider_state)[:,:2] - np.array(state_curr.slider_state)[:,:2]), axis=1)
             slider_distance_diff = slider_distance * self.fps / self.action_skip
 
-            _delta_slider_dist = np.where(np.abs(slider_distance_diff[1:]) - 1e-5 > 0)[0]
-            if len(_delta_slider_dist) > 0:
-                reward += -0.5
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.5
+                reward += -0.75
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
                 print("SIMULATION BREAK")
                 reward = -1000
 
-        # Check danger
-        slider_distance = (
-            (np.abs(np.array(state_prev.slider_state)[:,:2]) - np.abs(np.array(state_curr.slider_state)[:,:2]))
-            ).reshape(-1)
-        danger_list = np.array(state_curr.slider_state)[:,:2]
+            # Check danger
+            slider_distance = (
+                (np.abs(np.array(state_prev.slider_state)[:,:2]) - np.abs(np.array(state_curr.slider_state)[:,:2]))
+                ).reshape(-1)
+            danger_list = np.array(state_curr.slider_state)[:,:2]
 
-        danger_list1 = ((np.abs(danger_list) + self.min_r * 2.5 - self.table_limit) / (self.min_r * 2.0)).reshape(-1)
-        danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
+            danger_list1 = ((np.abs(danger_list) + self.min_r * 3.0 - self.table_limit) / (self.min_r * 3.0)).reshape(-1)
+            danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
-        danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-        # danger_list1[np.where(slider_distance - 1e-9 > 0)[0]] *= -1
-
-        danger_list_num1 = danger_list1
-        reward += -10.0 * (np.sum(danger_list_num1) / 3)
-
-        return reward
+            danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
+            reward += -1.5 * (np.max(danger_list1))
+        reward = np.clip(reward, -2.0, 2.0) 
+        # return reward
+        return reward / 2
     
     def get_state(self):
         table_size = self.table_limit * 2
         slider_state = self.state_prev.slider_state
         return {"table_size":table_size, "slider_state":slider_state}
 
-    def generate_spawn_points(self, num_points, center_bias=0.955):
+    def generate_spawn_points(self, num_points):
         points = []
         x_range = ((-self.table_limit[0] + self.min_r * 1.3) * 0.9, (self.table_limit[0] - self.min_r * 1.3) * 0.9)
         y_range = ((-self.table_limit[1] + self.min_r * 1.3) * 0.9, (self.table_limit[1] - self.min_r * 1.3) * 0.9)
@@ -418,7 +428,7 @@ class Simulation():
         candidate_points = []
         for _ in range(num_points - 1):
             # 첫 번째 점 주변에서 가우시안 분포로 점 생성
-            if random.random() < center_bias:  # 중심 근처에 생성될 확률
+            if random.random() < self.spawn_bias:  # 중심 근처에 생성될 확률
                 new_x = np.clip(np.random.normal(center_x, random.uniform(*available_lengh)), *x_range)
                 new_y = np.clip(np.random.normal(center_y, random.uniform(*available_lengh)), *y_range)
             else:  # 전체 영역에 균일 분포로 생성
