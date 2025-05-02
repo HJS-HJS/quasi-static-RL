@@ -1,6 +1,7 @@
 import os
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import numpy as np
 import torch
 from typing import List
@@ -16,8 +17,14 @@ def plots(total_steps_set, step):
     plt.figure(1)
     plt.xlabel('Episode')
     plt.ylabel('Duration')
-    for total_steps in total_steps_set:
-        plt.plot(np.linspace(1, len(total_steps) + 1, len(total_steps), endpoint=False) * step, total_steps, c='red')
+
+    # y축 간격 10으로 설정
+    ax = plt.gca()
+    ax.yaxis.set_major_locator(MultipleLocator(10))
+
+    color = ['red', 'blue', 'black', 'green', 'gray']
+    for idx, total_steps in enumerate(total_steps_set):
+        plt.plot(np.linspace(1, len(total_steps) + 1, len(total_steps), endpoint=False) * step, total_steps, c=color[idx])
     plt.grid(True)
 
 def live_plot(total_steps, step):
@@ -166,3 +173,8 @@ def visualize_attention(attn_weights, title="Attention Map"):
         axs[i].axis('off')
 
     plt.show()
+
+def last_file(save_dir:str):
+    folders = [f for f in os.listdir(save_dir) if os.path.isdir(os.path.join(save_dir, f))]
+    numbered_folders = [int(folder) for folder in folders if folder.isdigit()]
+    return max(numbered_folders)
