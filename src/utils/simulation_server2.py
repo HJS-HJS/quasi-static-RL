@@ -306,7 +306,7 @@ class Simulation():
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
-            return -5.0
+            return -1.0
 
         ## Pusher distance from target
         if len(state_curr.slider_state) == 0:
@@ -315,7 +315,7 @@ class Simulation():
             pusher_distance = (state_curr.pusher_state[:2] - state_curr.slider_state[0][:2])
         pusher_distance = np.linalg.norm(pusher_distance)
 
-        reward = np.clip(2.0 * (1 - pusher_distance / 0.3), -2.0, 2.0)
+        reward = np.clip(1.0 * (1 - pusher_distance / 0.3), -1.0, 1.0)
 
         return reward
         
@@ -356,13 +356,13 @@ class Simulation():
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -2.0
+            return -1.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
             return 2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -2.0
+            return -1.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
@@ -383,7 +383,7 @@ class Simulation():
             slider_distance_diff = slider_distance * self.fps / self.action_skip
 
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.75
+                reward += -0.50
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
@@ -400,8 +400,8 @@ class Simulation():
             danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
             danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-            reward += -1.5 * (np.max(danger_list1))
-        reward = np.clip(reward, -2.0, 2.0) 
+            reward += -1.0 * (np.max(danger_list1))
+        reward = np.clip(reward, -2.0, 2.0)
         # return reward
         return reward / 2
     
