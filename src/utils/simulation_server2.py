@@ -299,14 +299,14 @@ class Simulation():
         if state_prev is None: return 0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            return 1.0
+            return 2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
             return -1.0
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
-            return -1.0
+            return -5.0
 
         ## Pusher distance from target
         if len(state_curr.slider_state) == 0:
@@ -373,7 +373,7 @@ class Simulation():
 
         # distance
         reward += -0.1
-        reward += max(0.5 * (1 - pusher_distance_curr / 0.2) - 0.5, -2.0)
+        reward += max(0.5 * (1 - pusher_distance_curr / 0.3) - 0.5, -2.0)
 
         ## Slider
         if len(state_prev.slider_state) != len(state_curr.slider_state):
@@ -400,8 +400,8 @@ class Simulation():
             danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
             danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-            reward += -1.0 * (np.max(danger_list1))
-        reward = np.clip(reward, -2.0, 2.0)
+            reward += -1.5 * (np.max(danger_list1))
+        reward = np.clip(reward, -2.0, 2.0) 
         # return reward
         return reward / 2
     
