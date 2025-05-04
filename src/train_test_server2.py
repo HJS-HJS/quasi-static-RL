@@ -32,15 +32,15 @@ loss = 0.
 FRAME = 8
 
 # Learning Parameters
-LEARNING_RATE   = 0.0006 # optimizer
-DISCOUNT_FACTOR = 0.95   # gamma
+LEARNING_RATE   = 0.0004 # optimizer
+DISCOUNT_FACTOR = 0.999   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 ALPHA           = 0.5
 LEARNING_RATE_ALPHA= 0.0001
 # Memory
 MEMORY_CAPACITY = 150000
-BATCH_SIZE = 1024
+BATCH_SIZE = 2048
 EPOCH_SIZE = 2
 # Other
 visulaize_step = 50
@@ -109,9 +109,13 @@ class SelfAttentionObstacle(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
         )
         self.max_layer = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
@@ -145,37 +149,37 @@ class ActorNetwork(nn.Module):
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
+                nn.Linear(512 + 1024, 1024),
                 nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(256, n_action),
             ) for _ in range(2)
         ])
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
+                nn.Linear(512 + 1024, 1024),
                 nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, n_action),
+                nn.Linear(256, n_action),
                 nn.Softplus(),
             ) for _ in range(2)
         ])
@@ -287,21 +291,21 @@ class QNetwork(nn.Module):
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 1024),
+                nn.Linear(512 + 1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 1),
+                nn.Linear(256, 1),
             ) for _ in range(2)
         ])
 
@@ -389,7 +393,7 @@ def optimize_model(batch):
         target = r + (1 - d) * DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
         mode = next_m.long().view(-1, 1)
-        target += torch.where(mode.bool(), 0.0, -25.0)  # [batch, 1024]
+        target += torch.where(mode.bool(), 0.0, -10.0)  # [batch, 1024]
 
     q1_net.train(target, s1, s2, a, m, q1_optimizer)
     q2_net.train(target, s1, s2, a, m, q2_optimizer)
