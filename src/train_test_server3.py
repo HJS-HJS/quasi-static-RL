@@ -40,7 +40,7 @@ ALPHA           = 0.5
 LEARNING_RATE_ALPHA= 0.0001
 # Memory
 MEMORY_CAPACITY = 150000
-BATCH_SIZE = 2048
+BATCH_SIZE = 1024
 EPOCH_SIZE = 2
 # Other
 visulaize_step = 50
@@ -104,17 +104,28 @@ class SelfAttentionObstacle(nn.Module):
     def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
         hidden_dim = int(hidden_dim / 2)
+        hidden_dim_half = int(hidden_dim / 2)
         self.mean_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
         )
         self.max_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
         )
 
     def forward(self, obs):
@@ -151,11 +162,7 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
-                nn.Linear(512, 512),
-                nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -167,11 +174,7 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
-                nn.Linear(512, 512),
-                nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -181,10 +184,6 @@ class ActorNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -199,16 +198,11 @@ class ActorNetwork(nn.Module):
             mode_idx = mode.item()
             mu = self.mu[mode_idx](_state)
             std = self.std[mode_idx](_state)
-            # _mu = torch.cat([relative_pose, _mu], dim=1)
-            # mu = self.mu2[mode_idx](_mu)
 
         else:
             mu = torch.where(mode.bool(), self.mu[1](_state), self.mu[0](_state))
             std = torch.where(mode.bool(), self.std[1](_state), self.std[0](_state))
 
-            # _mu = torch.cat([relative_pose, _mu], dim=1)
-            # mu = torch.where(mode.bool(), self.mu2[1](_mu), self.mu2[0](_mu))
-                
         return mu, torch.clamp(std, min=0.05, max=2.0)
     
 
@@ -291,13 +285,9 @@ class QNetwork(nn.Module):
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512 + 512, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -306,10 +296,6 @@ class QNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, action, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -323,9 +309,6 @@ class QNetwork(nn.Module):
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
-        # _q = torch.cat([relative_pose, _q], dim=1)
-
-        # return torch.where(mode.bool(), self.layer2[1](_q), self.layer2[0](_q))
         return _q
             
     def train(self, target, state, obs, action, mode, optimizer):
@@ -389,7 +372,7 @@ def optimize_model(batch):
         target = r + (1 - d) * DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
         mode = next_m.long().view(-1, 1)
-        target += torch.where(mode.bool(), 0.0, -15.0)  # [batch, 1024]
+        target += torch.where(mode.bool(), 0.0, -10.0)  # [batch, 1024]
 
     q1_net.train(target, s1, s2, a, m, q1_optimizer)
     q2_net.train(target, s1, s2, a, m, q2_optimizer)

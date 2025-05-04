@@ -104,17 +104,24 @@ class SelfAttentionObstacle(nn.Module):
     def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
         hidden_dim = int(hidden_dim / 2)
+        hidden_dim_half = int(hidden_dim / 2)
         self.mean_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
         )
         self.max_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
         )
 
     def forward(self, obs):
@@ -181,10 +188,6 @@ class ActorNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -306,10 +309,6 @@ class QNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, action, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -389,7 +388,7 @@ def optimize_model(batch):
         target = r + (1 - d) * DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
         mode = next_m.long().view(-1, 1)
-        target += torch.where(mode.bool(), 0.0, -25.0)  # [batch, 1024]
+        target += torch.where(mode.bool(), 0.0, -10.0)  # [batch, 1024]
 
     q1_net.train(target, s1, s2, a, m, q1_optimizer)
     q2_net.train(target, s1, s2, a, m, q2_optimizer)

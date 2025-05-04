@@ -299,14 +299,14 @@ class Simulation():
         if state_prev is None: return 0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            return 1.0
+            return 2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -1.0
+            return -2.0
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
-            return -1.0
+            return -2.0
 
         ## Pusher distance from target
         if len(state_curr.slider_state) == 0:
@@ -356,13 +356,13 @@ class Simulation():
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -1.0
+            return -2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
             return 2.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -1.0
+            return -2.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
@@ -383,7 +383,7 @@ class Simulation():
             slider_distance_diff = slider_distance * self.fps / self.action_skip
 
             if slider_distance_diff[0] - 1e-5 > 0:
-                reward += -0.50
+                reward += -0.75
             
             # Simulation break case
             if np.max(np.abs(slider_distance_diff)) > 0.2:
