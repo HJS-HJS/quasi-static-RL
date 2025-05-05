@@ -13,7 +13,7 @@ import time
 so_file_path = os.path.abspath("../cpp/15")
 sys.path.append(so_file_path)
 
-from utils.simulation_server import DishSimulation
+from utils.simulation_server2 import DishSimulation
 
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
@@ -113,6 +113,8 @@ class SelfAttentionObstacle(nn.Module):
             nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
         )
         self.max_layer = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim_half),
@@ -120,6 +122,8 @@ class SelfAttentionObstacle(nn.Module):
             nn.Linear(hidden_dim_half, hidden_dim_half),
             nn.ReLU(),
             nn.Linear(hidden_dim_half, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
         )
@@ -158,7 +162,11 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -170,7 +178,11 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -194,16 +206,11 @@ class ActorNetwork(nn.Module):
             mode_idx = mode.item()
             mu = self.mu[mode_idx](_state)
             std = self.std[mode_idx](_state)
-            # _mu = torch.cat([relative_pose, _mu], dim=1)
-            # mu = self.mu2[mode_idx](_mu)
 
         else:
             mu = torch.where(mode.bool(), self.mu[1](_state), self.mu[0](_state))
             std = torch.where(mode.bool(), self.std[1](_state), self.std[0](_state))
 
-            # _mu = torch.cat([relative_pose, _mu], dim=1)
-            # mu = torch.where(mode.bool(), self.mu2[1](_mu), self.mu2[0](_mu))
-                
         return mu, torch.clamp(std, min=0.05, max=2.0)
     
 
@@ -292,7 +299,11 @@ class QNetwork(nn.Module):
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(256, 1),
+                nn.Linear(256, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 1),
             ) for _ in range(2)
         ])
 
@@ -310,9 +321,6 @@ class QNetwork(nn.Module):
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
-        # _q = torch.cat([relative_pose, _q], dim=1)
-
-        # return torch.where(mode.bool(), self.layer2[1](_q), self.layer2[0](_q))
         return _q
             
     def train(self, target, state, obs, action, mode, optimizer):
