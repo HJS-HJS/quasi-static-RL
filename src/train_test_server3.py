@@ -13,7 +13,7 @@ import time
 so_file_path = os.path.abspath("../cpp/15")
 sys.path.append(so_file_path)
 
-from utils.simulation_server import DishSimulation
+from utils.simulation_server2 import DishSimulation
 
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
@@ -22,7 +22,7 @@ from utils.utils           import *
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-use_data        = False
+curriculum = 0
 
 FILE_NAME = None
 
@@ -60,7 +60,6 @@ curriculum_dictionary = np.array([
     [8, 4, -4],
     [9, 4, -4],
 ])  
-curriculum = 0
 
 sim = DishSimulation(
     visualize=None,
@@ -77,7 +76,7 @@ if torch.cuda.is_available():
 ## Parameters
 # Policy Parameters
 N_INPUTS1   = 21 #9
-N_INPUTS2   = 21 #9
+N_INPUTS2   = 26 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
@@ -113,8 +112,6 @@ class SelfAttentionObstacle(nn.Module):
             nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
         )
         self.max_layer = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim_half),
@@ -122,8 +119,6 @@ class SelfAttentionObstacle(nn.Module):
             nn.Linear(hidden_dim_half, hidden_dim_half),
             nn.ReLU(),
             nn.Linear(hidden_dim_half, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
         )
@@ -162,7 +157,11 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -174,7 +173,11 @@ class ActorNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(512 + 512, 512),
                 nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -198,11 +201,16 @@ class ActorNetwork(nn.Module):
             mode_idx = mode.item()
             mu = self.mu[mode_idx](_state)
             std = self.std[mode_idx](_state)
+            # _mu = torch.cat([relative_pose, _mu], dim=1)
+            # mu = self.mu2[mode_idx](_mu)
 
         else:
             mu = torch.where(mode.bool(), self.mu[1](_state), self.mu[0](_state))
             std = torch.where(mode.bool(), self.std[1](_state), self.std[0](_state))
 
+            # _mu = torch.cat([relative_pose, _mu], dim=1)
+            # mu = torch.where(mode.bool(), self.mu2[1](_mu), self.mu2[0](_mu))
+                
         return mu, torch.clamp(std, min=0.05, max=2.0)
     
 
@@ -285,9 +293,13 @@ class QNetwork(nn.Module):
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
+                nn.Linear(512 + 512, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -309,6 +321,9 @@ class QNetwork(nn.Module):
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
+        # _q = torch.cat([relative_pose, _q], dim=1)
+
+        # return torch.where(mode.bool(), self.layer2[1](_q), self.layer2[0](_q))
         return _q
             
     def train(self, target, state, obs, action, mode, optimizer):
@@ -531,7 +546,7 @@ if TRAIN:
 else:
     del sim
     sim = DishSimulation(
-                        # visualize=None,
+                        visualize=None,
                         state="linear",
                         # record=True,
                         action_skip=FRAME
@@ -544,6 +559,7 @@ else:
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
     dish = np.zeros((15, 3), dtype=int)
+    failed_case = np.zeros(3, dtype=int)
     index = np.array(["dish", "try", "success", "failed"])
     idx = 0
     while True: 
@@ -552,9 +568,9 @@ else:
             if idx % 3 == 0:
                 _num = curriculum_dictionary[curriculum][0]
             elif idx % 3 == 1:
-                _num = curriculum_dictionary[curriculum][0] // 2
+                _num = curriculum_dictionary[curriculum][0]
             else:
-                _num = curriculum_dictionary[curriculum][0] // 4
+                _num = curriculum_dictionary[curriculum][0] // 2
             state_curr, _, _, mode = sim.reset(mode=None, slider_num=_num)
             limit = _num - 2
             state_curr1, state_curr2 = state_curr
@@ -562,8 +578,8 @@ else:
 
             if obs_num < limit: continue
             idx += 1
-            if np.sum(dish[obs_num,0]) <= 150:
-                obs_num -= 1
+            obs_num -= 1
+            if np.sum(dish[obs_num,0]) < 200:
                 break
 
 
@@ -585,8 +601,8 @@ else:
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done, mode = sim.env.step(_action, mode)
 
-            print("q1", q1_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
-            print("q2", q2_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+            # print("q1", q1_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+            # print("q2", q2_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
 
             if mode == 0:
                 mode_change_step = step
@@ -617,15 +633,19 @@ else:
                     state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
                     state_curr1 = state_next1
                     state_curr2 = state_next2
-                print("reward", reward)
+                # print("reward", reward)
                 # print("action", action.squeeze().cpu().numpy())
-                print("q1", q1_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
-                print("q2", q2_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                # print("q1", q1_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                # print("q2", q2_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
                 if done: break
 
         dish[obs_num, 0] += 1
         if reward > 0.5: dish[obs_num, 1] += 1
         else:            dish[obs_num, 2] += 1
+
+        if reward == -2.5: failed_case[1] += 1
+        elif reward == -2.25: failed_case[2] += 1
+        elif reward < 0.5: failed_case[0] += 1
 
         print("\tEpisode finished")
         print("\t\tStep #{}\tMode changed #{}".format(step, mode_change_step))
@@ -639,6 +659,7 @@ else:
             for i in range(15):
                 print("{}".format(dish[i, j]), end="\t")
             print("")
+        print("\tFailed Case Out: {}\tFailed: {}\tOut: {}".format(failed_case[0], failed_case[1], failed_case[2]))
         time.sleep(1)
 
 # Turn the sim off

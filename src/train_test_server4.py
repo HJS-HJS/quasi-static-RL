@@ -13,7 +13,7 @@ import time
 so_file_path = os.path.abspath("../cpp/15")
 sys.path.append(so_file_path)
 
-from utils.simulation_server import DishSimulation
+from utils.simulation_server2 import DishSimulation
 
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
@@ -22,7 +22,7 @@ from utils.utils           import *
 ## Parameters
 # TRAIN           = False
 TRAIN           = True
-use_data        = False
+curriculum = 0
 
 FILE_NAME = None
 
@@ -33,7 +33,7 @@ FRAME = 8
 
 # Learning Parameters
 LEARNING_RATE   = 0.0006 # optimizer
-DISCOUNT_FACTOR = 0.90   # gamma
+DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 ALPHA           = 0.5
@@ -60,7 +60,6 @@ curriculum_dictionary = np.array([
     [8, 4, -4],
     [9, 4, -4],
 ])  
-curriculum = 0
 
 sim = DishSimulation(
     visualize=None,
@@ -77,7 +76,7 @@ if torch.cuda.is_available():
 ## Parameters
 # Policy Parameters
 N_INPUTS1   = 21 #9
-N_INPUTS2   = 21 #9
+N_INPUTS2   = 26 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
@@ -100,21 +99,68 @@ def mask_attention_output(attn_output, mask):
 
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+
+class SelfAttentionObstacle(nn.Module):
+    def __init__(self, obs_dim=10, hidden_dim=1024, num_heads=8):
+        super(SelfAttentionObstacle, self).__init__()
+        self.linear_in = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+
+        self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, batch_first=True)
+
+        self.linear_out = nn.Linear(hidden_dim, hidden_dim)
+
+    def forward(self, obs, mask=None):
+        """
+        obs: [batch, k, obs_dim]
+        mask: [batch, k] (True for padding)
+        pooled: bool, whether to return pooled output or full sequence
+        """
+        obs = obs.permute(0, 2, 1)  # [batch, obs_dim, k] → [batch, k, obs_dim]
+        obs_embed = self.linear_in(obs)
+
+        attn_output, _ = self.attention(obs_embed, obs_embed, obs_embed, key_padding_mask=mask)
+
+        if mask is not None:
+            attn_output = mask_attention_output(attn_output, mask)
+
+        out = self.linear_out(attn_output)
+        if mask is not None:
+            # mask = [batch, k] → [batch, k, 1] for broadcasting
+            mask_inv = (~mask).unsqueeze(-1).float()  # 1 for valid, 0 for masked
+            sum_feat = (out * mask_inv).sum(dim=1)  # sum only valid features
+            count = mask_inv.sum(dim=1).clamp(min=1.0)  # avoid division by 0
+            return sum_feat / count  # [batch, hidden_dim]
+        else:
+            return out.mean(dim=1)  # [batch, hidden_dim]
+        
 class SelfAttentionObstacle(nn.Module):
     def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
         hidden_dim = int(hidden_dim / 2)
+        hidden_dim_half = int(hidden_dim / 2)
         self.mean_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
         )
         self.max_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
         )
 
     def forward(self, obs):
@@ -181,9 +227,7 @@ class ActorNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
+        mask = (obs.abs().sum(dim=1) == 0)
 
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
@@ -192,7 +236,7 @@ class ActorNetwork(nn.Module):
         _state = self.layer(state)  # [batch, 1024]
 
         # Obs self attention
-        _obs = self.self_attention(obs)  # [batch, 1024]
+        _obs = self.self_attention(obs, mask)  # [batch, 1024]
         _state = torch.cat([_state, _obs], dim=1)
 
         if mode.numel() == 1:
@@ -306,9 +350,7 @@ class QNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, action, mode):
-        # relative_pose = state[:,9:11] - state[:,2:4]
-        relative_pose = state[:,13:15] - state[:,2:4]
-        relative_pose = torch.clip(relative_pose * 5, -1.0, 1.0)
+        mask = (obs.abs().sum(dim=1) == 0)
 
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
@@ -319,7 +361,7 @@ class QNetwork(nn.Module):
         _action = torch.where(mode.bool(), self.action_layer[0](action), self.action_layer[1](action))  # [batch, 1024]
 
         # Obs self attention
-        _obs = self.self_attention(obs)  # [batch, 1024]
+        _obs = self.self_attention(obs, mask)  # [batch, 1024]
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))
@@ -389,7 +431,7 @@ def optimize_model(batch):
         target = r + (1 - d) * DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
         mode = next_m.long().view(-1, 1)
-        target += torch.where(mode.bool(), 0.0, -25.0)  # [batch, 1024]
+        target += torch.where(mode.bool(), 0.0, DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1))  # [batch, 1024]
 
     q1_net.train(target, s1, s2, a, m, q1_optimizer)
     q2_net.train(target, s1, s2, a, m, q2_optimizer)
@@ -548,7 +590,7 @@ if TRAIN:
 else:
     del sim
     sim = DishSimulation(
-                        # visualize=None,
+                        visualize=None,
                         state="linear",
                         # record=True,
                         action_skip=FRAME
@@ -561,6 +603,7 @@ else:
     alpha = load_tensor(alpha, SAVE_DIR, "alpha", FILE_NAME)
 
     dish = np.zeros((15, 3), dtype=int)
+    failed_case = np.zeros(3, dtype=int)
     index = np.array(["dish", "try", "success", "failed"])
     idx = 0
     while True: 
@@ -569,9 +612,9 @@ else:
             if idx % 3 == 0:
                 _num = curriculum_dictionary[curriculum][0]
             elif idx % 3 == 1:
-                _num = curriculum_dictionary[curriculum][0] // 2
+                _num = curriculum_dictionary[curriculum][0]
             else:
-                _num = curriculum_dictionary[curriculum][0] // 4
+                _num = curriculum_dictionary[curriculum][0] // 2
             state_curr, _, _, mode = sim.reset(mode=None, slider_num=_num)
             limit = _num - 2
             state_curr1, state_curr2 = state_curr
@@ -579,8 +622,8 @@ else:
 
             if obs_num < limit: continue
             idx += 1
-            if np.sum(dish[obs_num,0]) <= 150:
-                obs_num -= 1
+            obs_num -= 1
+            if np.sum(dish[obs_num,0]) < 200:
                 break
 
 
@@ -602,8 +645,8 @@ else:
             # 2. Run simulation 1 step (Execute action and observe reward)
             state_next, reward, done, mode = sim.env.step(_action, mode)
 
-            print("q1", q1_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
-            print("q2", q2_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+            # print("q1", q1_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+            # print("q2", q2_net(state_curr1, state_curr2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
 
             if mode == 0:
                 mode_change_step = step
@@ -634,15 +677,19 @@ else:
                     state_next2 = torch.tensor(state_next2.T, dtype=torch.float32, device=device)
                     state_curr1 = state_next1
                     state_curr2 = state_next2
-                print("reward", reward)
+                # print("reward", reward)
                 # print("action", action.squeeze().cpu().numpy())
-                print("q1", q1_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
-                print("q2", q2_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                # print("q1", q1_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
+                # print("q2", q2_net(state_next1, state_next2.unsqueeze(0), action, torch.tensor([mode], device=device).unsqueeze(0)))
                 if done: break
 
         dish[obs_num, 0] += 1
         if reward > 0.5: dish[obs_num, 1] += 1
         else:            dish[obs_num, 2] += 1
+
+        if reward == -2.5: failed_case[1] += 1
+        elif reward == -2.25: failed_case[2] += 1
+        elif reward < 0.5: failed_case[0] += 1
 
         print("\tEpisode finished")
         print("\t\tStep #{}\tMode changed #{}".format(step, mode_change_step))
@@ -656,6 +703,7 @@ else:
             for i in range(15):
                 print("{}".format(dish[i, j]), end="\t")
             print("")
+        print("\tFailed Case Out: {}\tFailed: {}\tOut: {}".format(failed_case[0], failed_case[1], failed_case[2]))
         time.sleep(1)
 
 # Turn the sim off

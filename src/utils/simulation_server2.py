@@ -199,6 +199,8 @@ class Simulation():
 
         _pusher_width = copy.deepcopy(_pusher[3])
 
+        _pusher_theta_cos = np.cos(_pusher[2])
+        _pusher_theta_sin = np.sin(_pusher[2])
         _sliders_theta_sin = np.sin(_sliders[:,2])
         _sliders_theta_cos = np.cos(_sliders[:,2])
 
@@ -243,7 +245,7 @@ class Simulation():
                 fingers.reshape(-1),
                 ))
 
-        _state2 = np.zeros(((len(_sliders)), 21))
+        _state2 = np.zeros(((len(_sliders)), 26))
 
         for idx in range(0, len(_sliders)):
 
@@ -265,6 +267,11 @@ class Simulation():
             edge = (self.table_limit - np.abs(_sliders[idx][:2]))
             edge = np.sign(_sliders[idx][:2]) * np.power(1 - edge, 3)
 
+            if mode <= 0:
+                relative_dist = _sliders[idx][:2] - _sliders[0][:2]
+            else:
+                relative_dist = _sliders[idx][:2] - _pusher[:2]
+
             _state2[idx] = np.concatenate([
                 _table,
                 [_target],
@@ -272,6 +279,12 @@ class Simulation():
                 _slider_edge.reshape(-1),
                 edge,
                 fingers.reshape(-1),
+                relative_dist,
+                [
+                    _pusher_theta_cos,
+                    _pusher_theta_sin,
+                    _pusher[3]
+                ],
             ])
 
         state = _state1, _state2
