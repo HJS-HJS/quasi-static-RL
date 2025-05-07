@@ -138,48 +138,6 @@ class SelfAttentionObstacle(nn.Module):
             return sum_feat / count  # [batch, hidden_dim]
         else:
             return out.mean(dim=1)  # [batch, hidden_dim]
-        
-class SelfAttentionObstacle(nn.Module):
-    def __init__(self, obs_dim=10, hidden_dim=1024):
-        super(SelfAttentionObstacle, self).__init__()
-        hidden_dim = int(hidden_dim / 2)
-        hidden_dim_half = int(hidden_dim / 2)
-        self.mean_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim_half),
-            nn.ReLU(),
-            nn.Linear(hidden_dim_half, hidden_dim_half),
-            nn.ReLU(),
-            nn.Linear(hidden_dim_half, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-        )
-        self.max_layer = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim_half),
-            nn.ReLU(),
-            nn.Linear(hidden_dim_half, hidden_dim_half),
-            nn.ReLU(),
-            nn.Linear(hidden_dim_half, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-        )
-
-    def forward(self, obs):
-        obs = obs.permute(0, 2, 1)  # [batch, k, 10]
-
-        valid_mask = (obs.abs().sum(dim=2) != 0)  # 실제 장애물 여부
-        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1e-6)  # [batch, 1]
-
-        mean_obs = self.mean_layer(obs)
-        max_obs = self.max_layer(obs)
-
-        # 패딩은 무시하고 평균 계산
-        mean_obs_masked = mean_obs.masked_fill(~valid_mask.unsqueeze(-1), 0.0)  # 패딩된 부분을 0으로 만듦
-        mean_obs = mean_obs_masked.sum(dim=1) / valid_counts  # [batch, dim]
-
-        max_obs_masked = max_obs.masked_fill(~valid_mask.unsqueeze(-1), -1e9)  # 패딩된 부분을 -1e9으로 만듦
-        max_obs = max_obs_masked.max(dim=1)[0] / valid_counts  # [batch, dim]
-
-        return torch.cat([mean_obs, max_obs], dim=1)
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
