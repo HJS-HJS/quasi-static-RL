@@ -40,7 +40,7 @@ ALPHA           = 0.5
 LEARNING_RATE_ALPHA= 0.0001
 # Memory
 MEMORY_CAPACITY = 150000
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 EPOCH_SIZE = 2
 # Other
 visulaize_step = 50
@@ -220,7 +220,7 @@ class ActorNetwork(nn.Module):
         _cut = curriculum_dictionary[curriculum][1]
         use_idx = {
             2: [0, 1],             # x, y
-            3: [0, 1, 3],          # x, y, width (theta는 0으로)
+            3: [0, 1, 2],          # x, y, theta
             4: [0, 1, 2, 3],       # x, y, theta, width
         }[_cut]
         
@@ -240,33 +240,28 @@ class ActorNetwork(nn.Module):
         # Curriculum
         if mu.dim() == 2:
             if _cut == 2:
-                theta = torch.zeros_like(action_countinue[:, :1])  # fixed theta
-                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 1.0).to(action_countinue.device)
+                theta = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(-0.3, 0.3).to(action_countinue.device)  # fixed theta
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 0.8).to(action_countinue.device)
                 action_countinue = torch.cat([action_countinue, theta, width], dim=1)
             
             elif _cut == 3:
-                xy = action_countinue[:, :2]
-                width = action_countinue[:, 2:3]
-                theta = torch.zeros_like(width)
-                action_countinue = torch.cat([xy, theta, width], dim=1)
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 0.8).to(action_countinue.device)
+                action_countinue = torch.cat([action_countinue, width], dim=1)
 
             else:
                 pass
         else:
             if _cut == 2:
-                theta = torch.zeros_like(action_countinue[:, :, :1])  # fixed theta
-                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 1.0).to(action_countinue.device)
+                theta = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(-0.3, 0.3).to(action_countinue.device)
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 0.8).to(action_countinue.device)
                 action_countinue = torch.cat([action_countinue, theta, width], dim=1)
             
             elif _cut == 3:
-                xy = action_countinue[:, :2]
-                width = action_countinue[:, 2:3]
-                theta = torch.zeros_like(width)
-                action_countinue = torch.cat([xy, theta, width], dim=1)
+                width = torch.FloatTensor(action_countinue.shape[0], 1).uniform_(0.5, 0.8).to(action_countinue.device)
+                action_countinue = torch.cat([action_countinue, width], dim=1)
 
             else:
                 pass
-
         return action_countinue, log_prob_continue.sum(dim = 1)
 
 

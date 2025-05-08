@@ -44,9 +44,9 @@ class Simulation():
         _pusher_type = self.config["pusher"]["pusher_type"]
 
         # Set pusher unit speed
-        unit_v_speed = self.config["pusher"]["unit_v_speed"] # [m/s]
+        unit_v_speed = self.config["pusher"]["unit_v_speed"] / 2# [m/s]
         unit_r_speed = self.config["pusher"]["unit_r_speed"] # [rad/s]
-        unit_w_speed = self.config["pusher"]["unit_w_speed"] # [m/s]
+        unit_w_speed = self.config["pusher"]["unit_w_speed"] / 2# [m/s]
         self.unit_speed = [unit_v_speed, unit_v_speed, unit_r_speed, unit_w_speed, int(1)]
 
         self.pusher_width_limit = np.array([self.config["pusher"]["pusher_d_u_limit"], self.config["pusher"]["pusher_d_l_limit"]])
@@ -58,8 +58,8 @@ class Simulation():
 
         # Set simulation param
         self.fps = self.config["simulator"]["fps"]
-        self.action_skip = action_skip
-        self.spawn_bias = 0.75
+        self.action_skip = action_skip * 2
+        self.spawn_bias = 0.95
 
         self.pusher_input = [
             self.config["pusher"]["pusher_num"], self.config["pusher"]["pusher_angle"], _pusher_type["type"], 
