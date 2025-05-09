@@ -76,7 +76,7 @@ if torch.cuda.is_available():
 ## Parameters
 # Policy Parameters
 N_INPUTS1   = 21 #9
-N_INPUTS2   = 21 #9
+N_INPUTS2   = 26 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
