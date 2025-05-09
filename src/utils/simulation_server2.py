@@ -264,8 +264,15 @@ class Simulation():
             ])
             _slider_edge /= self.table_limit
             np.random.shuffle(_slider_edge)
-            edge = (self.table_limit - np.abs(_sliders[idx][:2]))
-            edge = np.sign(_sliders[idx][:2]) * np.power(1 - edge, 3)
+            
+            edge = np.clip((np.abs(_sliders[idx][:2]) + self.min_r * 3.0 - self.table_limit) / (self.min_r * 3.0),
+                           0.0,
+                           1.0
+                           )
+            edge = np.sign(_sliders[idx][:2]) * edge
+            # edge = (self.table_limit - np.abs(_sliders[idx][:2]))
+            # edge = np.sign(_sliders[idx][:2]) * np.power(1 - edge, 3)
+
 
             if mode <= 0:
                 relative_dist = _sliders[idx][:2] - _sliders[0][:2]
@@ -369,13 +376,13 @@ class Simulation():
         ## Failed
         if state_curr.done & SimulationDoneReason.DONE_FALL_OUT.value:
             print("DONE_FALL_OUT")
-            return -2.0
+            return -1.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_SUCCESS.value:
             print("DONE_GRASP_SUCCESS")
-            return 2.0
+            return 1.0
         if state_curr.done & SimulationDoneReason.DONE_GRASP_FAILED.value:
             print("DONE_GRASP_FAILED")
-            return -2.0
+            return -1.0
 
         ## Pusher distance from target
         pusher_distance_prev = np.linalg.norm(state_prev.pusher_state[:2] - state_prev.slider_state[0][:2])
