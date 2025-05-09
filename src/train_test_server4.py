@@ -29,17 +29,17 @@ FILE_NAME = None
 loss = 0.
 
 # Learning frame
-FRAME = 8
+FRAME = 20
 
 # Learning Parameters
-LEARNING_RATE   = 0.0006 # optimizer
-DISCOUNT_FACTOR = 0.99   # gamma
+LEARNING_RATE   = 0.0003 # optimizer
+DISCOUNT_FACTOR = 0.97   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 ALPHA           = 0.5
 LEARNING_RATE_ALPHA= 0.0001
 # Memory
-MEMORY_CAPACITY = 150000
+MEMORY_CAPACITY = 100000
 BATCH_SIZE = 512
 EPOCH_SIZE = 2
 # Other
@@ -76,7 +76,7 @@ if torch.cuda.is_available():
 ## Parameters
 # Policy Parameters
 N_INPUTS1   = 21 #9
-N_INPUTS2   = 26 #9
+N_INPUTS2   = 21 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
@@ -99,45 +99,47 @@ def mask_attention_output(attn_output, mask):
 
 import torch.nn.functional as F
 
-import torch
-import torch.nn as nn
-
 class SelfAttentionObstacle(nn.Module):
-    def __init__(self, obs_dim=10, hidden_dim=1024, num_heads=8):
+    def __init__(self, obs_dim=10, hidden_dim=1024):
         super(SelfAttentionObstacle, self).__init__()
-        self.linear_in = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim),
+        hidden_dim = int(hidden_dim / 2)
+        hidden_dim_half = int(hidden_dim / 2)
+        self.mean_layer = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.max_layer = nn.Sequential(
+            nn.Linear(obs_dim, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim_half),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_half, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
         )
 
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, batch_first=True)
+    def forward(self, obs):
+        obs = obs.permute(0, 2, 1)  # [batch, k, 10]
 
-        self.linear_out = nn.Linear(hidden_dim, hidden_dim)
+        valid_mask = (obs.abs().sum(dim=2) != 0)  # 실제 장애물 여부
+        valid_counts = valid_mask.sum(dim=1, keepdim=True).clamp(min=1e-6)  # [batch, 1]
 
-    def forward(self, obs, mask=None):
-        """
-        obs: [batch, k, obs_dim]
-        mask: [batch, k] (True for padding)
-        pooled: bool, whether to return pooled output or full sequence
-        """
-        obs = obs.permute(0, 2, 1)  # [batch, obs_dim, k] → [batch, k, obs_dim]
-        obs_embed = self.linear_in(obs)
+        mean_obs = self.mean_layer(obs)
+        max_obs = self.max_layer(obs)
 
-        attn_output, _ = self.attention(obs_embed, obs_embed, obs_embed, key_padding_mask=mask)
+        # 패딩은 무시하고 평균 계산
+        mean_obs_masked = mean_obs.masked_fill(~valid_mask.unsqueeze(-1), 0.0)  # 패딩된 부분을 0으로 만듦
+        mean_obs = mean_obs_masked.sum(dim=1) / valid_counts  # [batch, dim]
 
-        if mask is not None:
-            attn_output = mask_attention_output(attn_output, mask)
+        max_obs_masked = max_obs.masked_fill(~valid_mask.unsqueeze(-1), -1e9)  # 패딩된 부분을 -1e9으로 만듦
+        max_obs = max_obs_masked.max(dim=1)[0] / valid_counts  # [batch, dim]
 
-        out = self.linear_out(attn_output)
-        if mask is not None:
-            # mask = [batch, k] → [batch, k, 1] for broadcasting
-            mask_inv = (~mask).unsqueeze(-1).float()  # 1 for valid, 0 for masked
-            sum_feat = (out * mask_inv).sum(dim=1)  # sum only valid features
-            count = mask_inv.sum(dim=1).clamp(min=1.0)  # avoid division by 0
-            return sum_feat / count  # [batch, hidden_dim]
-        else:
-            return out.mean(dim=1)  # [batch, hidden_dim]
+        return torch.cat([mean_obs, max_obs], dim=1)
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_state:int = 4, n_obs:int = 4, n_action:int = 2):
@@ -185,8 +187,6 @@ class ActorNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, mode):
-        mask = (obs.abs().sum(dim=1) == 0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -194,7 +194,7 @@ class ActorNetwork(nn.Module):
         _state = self.layer(state)  # [batch, 1024]
 
         # Obs self attention
-        _obs = self.self_attention(obs, mask)  # [batch, 1024]
+        _obs = self.self_attention(obs)  # [batch, 1024]
         _state = torch.cat([_state, _obs], dim=1)
 
         if mode.numel() == 1:
@@ -303,8 +303,6 @@ class QNetwork(nn.Module):
         ])
 
     def forward(self, state, obs, action, mode):
-        mask = (obs.abs().sum(dim=1) == 0)
-
         mode = mode.long().view(-1, 1)
         mode_onehot = torch.zeros(state.size(0), 2, device=state.device)
         mode_onehot.scatter_(1, mode, 1.0)
@@ -314,7 +312,7 @@ class QNetwork(nn.Module):
         _action = torch.where(mode.bool(), self.action_layer[0](action), self.action_layer[1](action))  # [batch, 1024]
 
         # Obs self attention
-        _obs = self.self_attention(obs, mask)  # [batch, 1024]
+        _obs = self.self_attention(obs)  # [batch, 1024]
         fusion_input = torch.cat([_state, _obs, _action], dim=1)  # [batch, 768]
 
         _q = torch.where(mode.bool(), self.layer[1](fusion_input), self.layer[0](fusion_input))

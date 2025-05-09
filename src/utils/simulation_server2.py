@@ -395,6 +395,9 @@ class Simulation():
             slider_distance = np.linalg.norm((np.array(state_prev.slider_state)[:,:2] - np.array(state_curr.slider_state)[:,:2]), axis=1)
             slider_distance_diff = slider_distance * self.fps / self.action_skip
 
+            if len(np.where(np.abs(slider_distance_diff[1:]) - 1e-5 > 0)[0]) > 0:
+                reward += -0.20
+
             if slider_distance_diff[0] - 1e-5 > 0:
                 reward += -0.75
             

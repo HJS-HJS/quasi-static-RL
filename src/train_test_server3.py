@@ -29,17 +29,17 @@ FILE_NAME = None
 loss = 0.
 
 # Learning frame
-FRAME = 8
+FRAME = 20
 
 # Learning Parameters
-LEARNING_RATE   = 0.0006 # optimizer
+LEARNING_RATE   = 0.0003 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 ALPHA           = 0.5
 LEARNING_RATE_ALPHA= 0.0001
 # Memory
-MEMORY_CAPACITY = 150000
+MEMORY_CAPACITY = 100000
 BATCH_SIZE = 512
 EPOCH_SIZE = 2
 # Other
@@ -76,7 +76,7 @@ if torch.cuda.is_available():
 ## Parameters
 # Policy Parameters
 N_INPUTS1   = 21 #9
-N_INPUTS2   = 26 #9
+N_INPUTS2   = 21 #9
 N_OUTPUT    = sim.env.action_space.shape[0] - 1   # 5
 
 total_steps = []
@@ -382,7 +382,7 @@ def optimize_model(batch):
         target = r + (1 - d) * DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1)
 
         mode = next_m.long().view(-1, 1)
-        target += torch.where(mode.bool(), 0.0, -10.0)  # [batch, 1024]
+        target += torch.where(mode.bool(), 0.0, DISCOUNT_FACTOR * (next_min_q + next_entropy).unsqueeze(1))  # [batch, 1024]
 
     q1_net.train(target, s1, s2, a, m, q1_optimizer)
     q2_net.train(target, s1, s2, a, m, q2_optimizer)
