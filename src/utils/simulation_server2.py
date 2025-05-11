@@ -326,7 +326,7 @@ class Simulation():
 
         # Spawn failed penalty
         if state_prev.mode == state_curr.mode:
-            return -2.0
+            return -4.0
 
         ## Pusher distance from target
         if len(state_curr.slider_state) == 0:
@@ -393,7 +393,8 @@ class Simulation():
 
         # distance
         reward += -0.1
-        reward += max(0.5 * (1 - pusher_distance_curr / 0.2) - 0.5, -2.0)
+        # reward += max(0.5 * (1 - pusher_distance_curr / 0.2) - 0.5, -2.0)
+        reward += max(0.4 * (1 - pusher_distance_curr / 0.3) - 0.2, -2.0)
 
         ## Slider
         if len(state_prev.slider_state) != len(state_curr.slider_state):

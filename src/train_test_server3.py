@@ -53,8 +53,8 @@ episode_start = 1
 # curriculum
 curriculum_dictionary = np.array([
     # obs, action_step, target_entropy
-    [2, 2, -2],
-    [4, 3, -2],
+    [3, 2, -1],
+    [4, 3, -1],
     [5, 4, -2],
     [6, 4, -2],
     [8, 4, -4],
