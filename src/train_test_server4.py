@@ -13,7 +13,7 @@ import time
 so_file_path = os.path.abspath("../cpp/15")
 sys.path.append(so_file_path)
 
-from utils.simulation_server2 import DishSimulation
+from utils.simulation_server3 import DishSimulation
 
 from utils.sac_dataset_cpp_linear import SACDataset
 from utils.utils           import *
@@ -33,7 +33,7 @@ FRAME = 20
 
 # Learning Parameters
 LEARNING_RATE   = 0.0003 # optimizer
-DISCOUNT_FACTOR = 0.97   # gamma
+DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
 ALPHA           = 0.5
@@ -53,9 +53,9 @@ episode_start = 1
 # curriculum
 curriculum_dictionary = np.array([
     # obs, action_step, target_entropy
-    [3, 2, -1],
+    [3, 2,  0],
     [4, 3, -1],
-    [5, 4, -2],
+    [5, 4, -1],
     [6, 4, -2],
     [8, 4, -4],
     [9, 4, -4],
@@ -147,21 +147,17 @@ class ActorNetwork(nn.Module):
         self.layer = nn.Sequential(
             nn.Linear(n_state, 256),
             nn.ReLU(),
-            nn.Linear(256, 512),
+            nn.Linear(256, 256),
             nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
-                nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(256 + 256, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -171,13 +167,9 @@ class ActorNetwork(nn.Module):
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
-                nn.ReLU(),
-                nn.Linear(512, 512),
+                nn.Linear(256 + 256, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
@@ -284,17 +276,13 @@ class QNetwork(nn.Module):
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=256)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512 + 256, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
