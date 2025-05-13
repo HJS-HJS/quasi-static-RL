@@ -149,13 +149,19 @@ class ActorNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 512),
             nn.ReLU(),
+            nn.Linear(512, 1024),
+            nn.ReLU(),
         )
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.mu = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
+                nn.Linear(1024 + 1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 512),
                 nn.ReLU(),
@@ -171,7 +177,11 @@ class ActorNetwork(nn.Module):
 
         self.std = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 512),
+                nn.Linear(1024 + 1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
                 nn.Linear(512, 512),
                 nn.ReLU(),
@@ -271,7 +281,9 @@ class QNetwork(nn.Module):
         self.state_layer = nn.Sequential(
             nn.Linear(n_state, 256),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(256, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1024),
             nn.ReLU(),
         )
 
@@ -279,18 +291,24 @@ class QNetwork(nn.Module):
             nn.Sequential(
                 nn.Linear(n_action, 256),
                 nn.ReLU(),
-                nn.Linear(256, 256),
+                nn.Linear(256, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1024),
                 nn.ReLU(),
             ) for _ in range(2)
         ])
 
-        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=512)
+        self.self_attention = SelfAttentionObstacle(obs_dim=n_obs, hidden_dim=1024)
 
         self.layer = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(512 + 512, 1024),
+                nn.Linear(2048 + 1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
                 nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
@@ -298,7 +316,7 @@ class QNetwork(nn.Module):
                 nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
-                nn.Linear(128, 1),
+                nn.Linear(128, n_action),
             ) for _ in range(2)
         ])
 

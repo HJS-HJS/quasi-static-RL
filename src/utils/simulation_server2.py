@@ -420,11 +420,15 @@ class Simulation():
                 ).reshape(-1)
             danger_list = np.array(state_curr.slider_state)[:,:2]
 
-            danger_list1 = ((np.abs(danger_list) + self.min_r * 3.0 - self.table_limit) / (self.min_r * 3.0)).reshape(-1)
+            danger_list1 = ((np.abs(danger_list) + self.min_r * 4.0 - self.table_limit) / (self.min_r * 4.0)).reshape(-1)
             danger_list1[np.where(danger_list1 < 0.0)[0]] = 0
 
             danger_list1[np.where(np.abs(slider_distance) - 1e-9 < 0)[0]] = 0
-            reward += -1.5 * (np.max(danger_list1))
+            reward += -0.75 * (np.max(danger_list1))
+
+            danger_list2 = ((np.abs(danger_list) + self.min_r * 1.0 - self.table_limit) / (self.min_r * 1.0)).reshape(-1)
+            danger_list2[np.where(danger_list2 < 0.0)[0]] = 0
+            reward += -0.75 * (np.max(danger_list2))
         reward = np.clip(reward, -2.0, 2.0) 
         # return reward
         return reward / 2
