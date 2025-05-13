@@ -36,8 +36,8 @@ LEARNING_RATE   = 0.0003 # optimizer
 DISCOUNT_FACTOR = 0.99   # gamma
 TARGET_UPDATE_TAU= 0.01
 EPISODES        = 15000   # total episode
-ALPHA           = 0.5
-LEARNING_RATE_ALPHA= 0.0001
+ALPHA           = 0.4
+LEARNING_RATE_ALPHA= 0.00005
 # Memory
 MEMORY_CAPACITY = 100000
 BATCH_SIZE = 512
@@ -54,10 +54,10 @@ episode_start = 1
 curriculum_dictionary = np.array([
     # obs, action_step, target_entropy
     [3, 2, -1],
-    [4, 3, -1],
-    [5, 4, -2],
+    [4, 3, -0],
+    [5, 4, -1],
     [6, 4, -2],
-    [8, 4, -4],
+    [8, 4, -3],
     [9, 4, -4],
 ])  
 
