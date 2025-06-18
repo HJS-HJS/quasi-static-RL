@@ -24,7 +24,6 @@ TRAIN           = False
 # TRAIN           = True
 curriculum = 5
 
-# FILE_NAME = None
 FILE_NAME = 11550
 loss = 0.
 
